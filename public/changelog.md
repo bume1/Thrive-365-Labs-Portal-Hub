@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.19.1 - March 2, 2026
+
+#### Changes
+- Move publish status tag to bottom right of project cards
+
+
 ### Version 3.19.0 - March 2, 2026
 
 #### New Features

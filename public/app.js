@@ -2355,26 +2355,6 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                       </button>
                     )}
                   </div>
-                  {(() => {
-                    const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
-                    const canManagePublish = user.role === 'admin' || isProjectAdmin;
-                    if (!canManagePublish) return null;
-                    return (
-                      <div className="flex items-center justify-end gap-2 mt-3">
-                        <PublishedStatusBadge publishedStatus={project.publishedStatus} />
-                        <button
-                          onClick={() => handleTogglePublishedStatus(project)}
-                          className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
-                            (project.publishedStatus || 'published') === 'draft'
-                              ? 'border-emerald-400 text-emerald-700 hover:bg-emerald-50'
-                              : 'border-amber-400 text-amber-700 hover:bg-amber-50'
-                          }`}
-                        >
-                          {(project.publishedStatus || 'published') === 'draft' ? 'Publish' : 'Unpublish'}
-                        </button>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             ))}
@@ -3476,9 +3456,28 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   const [showEmailHistory, setShowEmailHistory] = useState(false);
 
   const isAdmin = user.role === 'admin';
+  const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
   const userAccessLevel = isAdmin ? 'edit' : ((user.projectAccessLevels || {})[project.id] || 'edit');
   const canEdit = isAdmin || userAccessLevel === 'edit';
-  
+  const canManagePublish = isAdmin || isProjectAdmin;
+
+  const handleTogglePublishedStatus = async () => {
+    const newStatus = (project.publishedStatus || 'published') === 'draft' ? 'published' : 'draft';
+    const label = newStatus === 'published' ? 'publish' : 'unpublish';
+    if (!confirm(`Are you sure you want to ${label} "${project.name}"?`)) return;
+    try {
+      const result = await api.updateProject(token, project.id, { publishedStatus: newStatus });
+      if (result && result.error) {
+        alert(result.error);
+        return;
+      }
+      setProject({ ...project, publishedStatus: newStatus });
+    } catch (err) {
+      console.error('Failed to toggle published status:', err);
+      alert('Failed to update published status');
+    }
+  };
+
   // Refresh project data from server
   const refreshProject = async () => {
     try {
@@ -4597,6 +4596,22 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 </svg>
                 Notes Log ({aggregatedNotes.length})
               </button>
+              
+              {canManagePublish && (
+                <>
+                  <div className="border-l border-gray-300 mx-2"></div>
+                  <button
+                    onClick={handleTogglePublishedStatus}
+                    className={`px-3 py-1.5 rounded-md text-sm ${
+                      (project.publishedStatus || 'published') === 'draft'
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                        : 'bg-amber-500 text-white hover:bg-amber-600'
+                    }`}
+                  >
+                    {(project.publishedStatus || 'published') === 'draft' ? 'Publish' : 'Unpublish'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
