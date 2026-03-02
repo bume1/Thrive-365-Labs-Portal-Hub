@@ -368,7 +368,7 @@ const processNotificationQueue = async () => {
 const BASE_HTML_EMAIL_WRAPPER = `
 <div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -382,7 +382,7 @@ const BASE_HTML_EMAIL_WRAPPER = `
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
 const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -416,7 +416,7 @@ function renderTemplate(templateStr, variables) {
 }
 
 // Build HTML email body: use custom htmlBody if provided, otherwise wrap plain body in base layout
-function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl) {
+function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl, baseUrl) {
   if (htmlBody) return htmlBody;
   const ctaBlock = (ctaUrl && ctaLabel)
     ? `<p style="margin-top: 20px;"><a href="${ctaUrl}" style="display: inline-block; background: #045E9F; color: #ffffff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px;">${ctaLabel}</a></p>`
@@ -424,7 +424,7 @@ function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl) {
   const unsubscribeBlock = unsubscribeUrl
     ? `<p style="color: #9ca3af; font-size: 11px; margin: 6px 0 0;"><a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from these emails</a></p>`
     : '';
-  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock });
+  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock, appUrl: baseUrl || 'https://thrive365labs.live' });
 }
 
 // ============================================================
@@ -782,7 +782,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
     htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
@@ -916,8 +916,7 @@ const scanAndQueueNotifications = async () => {
       const renderedHtml = buildHtmlEmail(
         renderedBody,
         t.htmlBody ? renderTemplate(t.htmlBody, allVars) : null,
-        ctaUrl, ctaLabel,
-        unsubscribeUrl
+        ctaUrl, ctaLabel, unsubscribeUrl, appBaseUrl
       );
       await queueNotification(
         templateId,
@@ -2345,7 +2344,7 @@ function renderUnsubscribePageHtml(message, isSuccess) {
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" />
+    <img class="logo" src="/thrive365-logo.webp" alt="Thrive 365 Labs" />
     <div class="icon">${isSuccess ? '✅' : '❌'}</div>
     <h2>Email Preferences</h2>
     <p>${message}</p>
@@ -4214,9 +4213,11 @@ app.post('/api/announcements', authenticateToken, requireClientPortalAdmin, asyn
         // Load editable announcement template
         const annTemplates = await getEmailTemplates();
         const annTpl = getTemplateById(annTemplates, 'announcement');
+        const appBaseUrl = await getAppBaseUrl();
         const baseVars = {
           title: newAnnouncement.title,
           content: newAnnouncement.content,
+          appUrl: appBaseUrl,
           priorityTag: newAnnouncement.priority ? '[PRIORITY] ' : '',
           priorityBanner: newAnnouncement.priority ? '<p style="color: #dc2626; font-weight: 600; margin-bottom: 8px;">⚠️ This is a priority announcement</p>' : '',
           attachmentUrl: newAnnouncement.attachmentUrl || '',
@@ -12227,7 +12228,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App');
+      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App', null, appBaseUrl);
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -12242,15 +12243,18 @@ app.post('/api/admin/email-templates/:id/test-send', authenticateToken, requireA
     const templates = await getEmailTemplates();
     const tpl = getTemplateById(templates, req.params.id);
     if (!tpl) return res.status(404).json({ error: 'Template not found' });
+    const appBaseUrl = await getAppBaseUrl();
     const vars = {};
     getPoolVariablesForTemplate(tpl.id).forEach(v => { vars[v.key] = v.example || `[${v.label}]`; });
     vars.recipientName = req.user.name;
     vars.recipientEmail = req.user.email;
+    vars.appUrl = appBaseUrl;
+    vars.loginUrl = `${appBaseUrl}/login`;
     const subject = `[TEST] ${renderTemplate(tpl.subject, vars)}`;
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null);
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, null, null, null, appBaseUrl);
     const result = await sendEmail(req.user.email, subject, body, { htmlBody: htmlSrc });
     if (!result.success) return res.status(500).json({ error: result.error || 'Send failed' });
     res.json({ message: `Test email sent to ${req.user.email}` });
@@ -12644,7 +12648,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App');
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App', null, appBaseUrl);
     res.json({ subject, body, html: htmlSrc });
   } catch (error) {
     console.error('Preview email template error:', error);
