@@ -368,7 +368,7 @@ const processNotificationQueue = async () => {
 const BASE_HTML_EMAIL_WRAPPER = `
 <div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -382,7 +382,7 @@ const BASE_HTML_EMAIL_WRAPPER = `
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
 const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -565,9 +565,7 @@ function getPoolGroupsForTemplate(templateId) {
 async function getAppBaseUrl() {
   const domain = await db.get('client_portal_domain');
   if (domain) return `https://${domain}`;
-  return process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : 'https://thrive365labs.live';
+  return 'https://thrive365labs.live';
 }
 
 function resolveSystemVars(appBaseUrl) {
@@ -784,7 +782,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
     htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
@@ -803,7 +801,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
       { key: 'attachmentUrl', label: 'Attachment URL', example: '' },
       { key: 'attachmentName', label: 'Attachment Name', example: '' },
       { key: 'attachmentLine', label: 'Attachment Text Line', example: '' },
-      { key: 'attachmentBlock', label: 'Attachment HTML Block', example: '' }
+      { key: 'attachmentBlock', label: 'Attachment HTML Block', example: '<p style="margin-top: 16px;"><a href="#" style="color: #045E9F; font-weight: 500;">📎 View Attachment</a></p>' }
     ],
     isDefault: true, updatedAt: null, updatedBy: null
   },
@@ -11516,7 +11514,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null);
+      : buildHtmlEmail(renderedBody, null, 'https://thrive365labs.live', 'View in App');
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -11938,7 +11936,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null);
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, 'https://thrive365labs.live', 'View in App');
     res.json({ subject, body, html: htmlSrc });
   } catch (error) {
     console.error('Preview email template error:', error);
