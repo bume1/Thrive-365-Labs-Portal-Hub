@@ -3416,6 +3416,15 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
     if (!isAdmin) {
       const userAssignedProjects = req.user.assignedProjects || [];
       projects = projects.filter(p => userAssignedProjects.includes(p.id));
+
+      // Non-admins only see published projects unless they have project-level admin access (managers)
+      const accessLevels = req.user.projectAccessLevels || {};
+      projects = projects.filter(p => {
+        const pubStatus = p.publishedStatus || 'published';
+        if (pubStatus === 'published') return true;
+        // Draft: only visible to project-level admins (managers)
+        return accessLevels[p.id] === 'admin';
+      });
     }
     
     const projectsWithDetails = await Promise.all(projects.map(async (project) => {
@@ -3516,6 +3525,7 @@ app.post('/api/projects', authenticateToken, requireAdmin, async (req, res) => {
       hubspotContactId: '',
       template: template || 'biolis-au480-clia',
       status: 'active',
+      publishedStatus: 'draft',
       clientLinkId: uuidv4(),
       clientLinkSlug: clientLinkSlug,
       createdAt: new Date().toISOString(),
@@ -3614,6 +3624,18 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Validate publishedStatus — only admins or project-level admins (managers) may change it
+    if (req.body.publishedStatus !== undefined) {
+      const isAdminUser = req.user.role === config.ROLES.ADMIN;
+      const isProjectAdmin = (req.user.projectAccessLevels || {})[req.params.id] === 'admin';
+      if (!isAdminUser && !isProjectAdmin) {
+        return res.status(403).json({ error: 'Admin or project manager access required to change published status' });
+      }
+      if (!['draft', 'published'].includes(req.body.publishedStatus)) {
+        return res.status(400).json({ error: 'Invalid publishedStatus. Must be draft or published' });
+      }
+    }
+
     // Validate name and clientName are not empty if provided
     if (req.body.name !== undefined && !String(req.body.name).trim()) {
       return res.status(400).json({ error: 'Project name cannot be empty' });
@@ -3629,7 +3651,7 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'clientPortalDomain', 'goLiveDate'];
+    const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'publishedStatus', 'clientPortalDomain', 'goLiveDate'];
     
     // Check if client name is being changed - regenerate slug
     const oldClientName = projects[idx].clientName;
@@ -3754,6 +3776,7 @@ app.post('/api/projects/:id/clone', authenticateToken, requireAdmin, async (req,
       name: name || `${originalProject.name} (Copy)`,
       clientName: newClientName,
       status: 'active',
+      publishedStatus: 'draft',
       clientLinkId: uuidv4(),
       clientLinkSlug: generateClientSlug(newClientName, existingSlugs),
       hubspotRecordId: '',

@@ -1072,6 +1072,29 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// ============== PUBLISHED STATUS BADGE COMPONENT ==============
+const PublishedStatusBadge = ({ publishedStatus }) => {
+  const isDraft = (publishedStatus || 'published') === 'draft';
+  if (isDraft) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        Draft
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+      Published
+    </span>
+  );
+};
+
 // ============== PROJECT LIST COMPONENT ==============
 const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates, onManageHubSpot, onViewReporting }) => {
   const [projects, setProjects] = useState([]);
@@ -1262,19 +1285,42 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
     }
     
     try {
-      await api.updateProject(token, editingProject.id, {
+      const updates = {
         name: editingProject.name,
         clientName: editingProject.clientName,
         projectManager: editingProject.projectManager,
         hubspotRecordId: editingProject.hubspotRecordId,
         status: editingProject.status,
         goLiveDate: editingProject.goLiveDate || ''
-      });
+      };
+      // Only include publishedStatus if user has permission to change it
+      const isProjectAdmin = (user.projectAccessLevels || {})[editingProject.id] === 'admin';
+      if (user.role === 'admin' || isProjectAdmin) {
+        updates.publishedStatus = editingProject.publishedStatus || 'draft';
+      }
+      await api.updateProject(token, editingProject.id, updates);
       setEditingProject(null);
       loadProjects();
     } catch (err) {
       console.error('Failed to update project:', err);
       alert('Failed to update project');
+    }
+  };
+
+  const handleTogglePublishedStatus = async (project) => {
+    const newStatus = (project.publishedStatus || 'published') === 'draft' ? 'published' : 'draft';
+    const label = newStatus === 'published' ? 'publish' : 'unpublish';
+    if (!confirm(`Are you sure you want to ${label} "${project.name}"?`)) return;
+    try {
+      const result = await api.updateProject(token, project.id, { publishedStatus: newStatus });
+      if (result && result.error) {
+        alert(result.error);
+        return;
+      }
+      loadProjects();
+    } catch (err) {
+      console.error('Failed to toggle published status:', err);
+      alert('Failed to update published status');
     }
   };
 
@@ -2203,7 +2249,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
             {projects.map(project => (
               <div
                 key={project.id}
-                className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md border border-gray-200"
+                className={`bg-white rounded-lg shadow-sm p-6 hover:shadow-md border ${(project.publishedStatus || 'published') === 'draft' ? 'border-amber-300 border-2' : 'border-gray-200'}`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-xl font-bold text-gray-900">{project.name}</h3>
@@ -2216,6 +2262,26 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                     <StatusBadge status={project.status || 'active'} />
                   </div>
                 </div>
+                {(() => {
+                  const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
+                  const canManagePublish = user.role === 'admin' || isProjectAdmin;
+                  if (!canManagePublish) return null;
+                  return (
+                    <div className="flex items-center gap-2 mb-3">
+                      <PublishedStatusBadge publishedStatus={project.publishedStatus} />
+                      <button
+                        onClick={() => handleTogglePublishedStatus(project)}
+                        className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
+                          (project.publishedStatus || 'published') === 'draft'
+                            ? 'border-emerald-400 text-emerald-700 hover:bg-emerald-50'
+                            : 'border-amber-400 text-amber-700 hover:bg-amber-50'
+                        }`}
+                      >
+                        {(project.publishedStatus || 'published') === 'draft' ? 'Publish' : 'Unpublish'}
+                      </button>
+                    </div>
+                  );
+                })()}
                 <p className="text-gray-600 mb-3">{project.clientName}</p>
 
                 {/* Progress Bar */}
@@ -2402,6 +2468,24 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                     <option value="completed">Completed</option>
                   </select>
                 </div>
+                {(() => {
+                  const isProjectAdmin = (user.projectAccessLevels || {})[editingProject.id] === 'admin';
+                  if (user.role !== 'admin' && !isProjectAdmin) return null;
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Published Status</label>
+                      <select
+                        value={editingProject.publishedStatus || 'draft'}
+                        onChange={(e) => setEditingProject({...editingProject, publishedStatus: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-md"
+                      >
+                        <option value="draft">Draft (hidden from team members)</option>
+                        <option value="published">Published (visible to all assigned users)</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Draft projects are only visible to admins and project managers.</p>
+                    </div>
+                  );
+                })()}
                 <div>
                   <label className="block text-sm font-medium mb-1">Target Go-Live Date</label>
                   <input
