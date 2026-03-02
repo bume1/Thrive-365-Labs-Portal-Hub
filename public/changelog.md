@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.18.0 - February 26, 2026
+
+#### New Features
+- Add client task assignment, unsubscribe/resubscribe support for automated emails
+
+
 ### Version 3.17.1 - February 26, 2026
 
 #### Improvements
