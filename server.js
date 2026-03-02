@@ -12228,7 +12228,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null, null, null, null, appBaseUrl);
+      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App', null, appBaseUrl);
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -12648,7 +12648,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, null, null, null, appBaseUrl);
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App', null, appBaseUrl);
     res.json({ subject, body, html: htmlSrc });
   } catch (error) {
     console.error('Preview email template error:', error);
