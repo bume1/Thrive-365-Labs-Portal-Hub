@@ -11510,11 +11510,16 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     // Allow caller to override with custom preview data
     const vars = { ...exampleVars, ...(req.body.variables || {}) };
 
+    // Override URL vars with dynamic values so preview reflects the configured domain
+    const appBaseUrl = await getAppBaseUrl();
+    vars.appUrl   = appBaseUrl;
+    vars.loginUrl = `${appBaseUrl}/login`;
+
     const renderedSubject = renderTemplate(template.subject, vars);
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null, 'https://thrive365labs.live', 'View in App');
+      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App');
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -11932,11 +11937,17 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     // Build example vars from pool definitions
     const vars = {};
     getPoolVariablesForTemplate(tpl.id).forEach(v => { vars[v.key] = v.example || `[${v.label}]`; });
+
+    // Override URL vars with dynamic values so preview reflects the configured domain
+    const appBaseUrl = await getAppBaseUrl();
+    vars.appUrl   = appBaseUrl;
+    vars.loginUrl = `${appBaseUrl}/login`;
+
     const subject = renderTemplate(tpl.subject, vars);
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, 'https://thrive365labs.live', 'View in App');
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App');
     res.json({ subject, body, html: htmlSrc });
   } catch (error) {
     console.error('Preview email template error:', error);
