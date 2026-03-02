@@ -4,6 +4,13 @@
 
 ---
 
+### Version 3.18.1 - March 2, 2026
+
+#### Bug Fixes
+- Fix error that prevents the service portal from loading
+- Fix blank connections area by re-establishing GitHub link
+
+
 ### Version 3.18.0 - February 26, 2026
 
 #### New Features
