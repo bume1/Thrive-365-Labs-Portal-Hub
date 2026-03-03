@@ -41,7 +41,9 @@ Preferred communication style: Simple, everyday language.
 - **HubSpot Webhook Integration**: Endpoint for receiving HubSpot form submission notifications.
 - **Task Tagging System**: Admins and team members can add tags to tasks for grouping and filtering, with a predefined global tag library.
 - **Task Reordering**: Admins can reorder tasks within stages. Tasks are automatically sorted by due date first, then by manual order.
-- **Task File Attachments**: Admins can upload files (PDF, images, Word, Excel, text) to tasks, stored in Google Drive. Files are visible to clients when the parent task is client-visible. A paperclip icon (📎) appears next to task names across all views when files are attached.
+- **Task File Attachments**: Admins can upload files (PDF, images, Word, Excel, text) to tasks, stored in Google Drive. Files are visible to clients when the parent task is client-visible. A paperclip icon (📎) appears next to task names across all views when files are attached. Uploading to client-visible tasks triggers automatic notification emails to assigned clients with deep links to the task.
+- **Client Portal Task Anchors**: Email notification links use `#task-{taskId}` anchors to scroll directly to specific tasks in the portal milestones view, auto-expanding the relevant phase.
+- **Client Portal Onboarding Files**: Task file attachments from client-visible tasks automatically appear in the "Onboarding Documents" section of the client portal Files page.
 - **Timeline Sorting**: Tasks in timeline views are sorted by due date (earliest first), with tasks without due dates appearing last.
 - **Data Normalization**: Admin utilities for normalizing subtask data inconsistencies and regenerating slugs.
 - **Idempotent HubSpot Sync**: Tasks and notes store HubSpot IDs to prevent duplicates on subsequent syncs.

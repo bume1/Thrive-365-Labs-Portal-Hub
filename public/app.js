@@ -1288,16 +1288,6 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
   const handleEditProject = async () => {
     if (!editingProject) return;
     
-    const originalProject = projects.find(p => p.id === editingProject.id);
-    const statusChangingToCompleted = editingProject.status === 'completed' && originalProject && originalProject.status !== 'completed';
-    if (statusChangingToCompleted && !editingProject.softPilotChecklistSubmitted) {
-      const hasSoftPilotTasks = (tasks || []).some(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot'));
-      if (hasSoftPilotTasks) {
-        alert('The Soft-Pilot Checklist must be submitted before marking this project as completed. Please complete the checklist by clicking the Soft-Pilot Checklist button in the toolbar.');
-        return;
-      }
-    }
-    
     try {
       const updates = {
         name: editingProject.name,
@@ -4644,7 +4634,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 Notes Log ({aggregatedNotes.length})
               </button>
               
-              {viewMode === 'internal' && tasks.some(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot')) && (
+              {tasks.some(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot')) && (
                 <>
                   <div className="border-l border-gray-300 mx-2"></div>
                   <button
@@ -6294,7 +6284,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
                     <select disabled={!bulkEditFields.ownerEnabled} value={bulkEditFields.owner || ''} onChange={(e) => setBulkEditFields({...bulkEditFields, owner: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50">
                       <option value="">Unassigned</option>
-                      {teamMembers.map(m => <option key={m.id || m.name} value={m.name}>{m.name}</option>)}
+                      {allOwners.map(m => <option key={m.email} value={m.name}>{m.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -6304,7 +6294,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Owner</label>
                     <select disabled={!bulkEditFields.secondaryOwnerEnabled} value={bulkEditFields.secondaryOwner || ''} onChange={(e) => setBulkEditFields({...bulkEditFields, secondaryOwner: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50">
                       <option value="">None</option>
-                      {teamMembers.map(m => <option key={m.id || m.name} value={m.name}>{m.name}</option>)}
+                      {allOwners.map(m => <option key={m.email} value={m.name}>{m.name}</option>)}
                     </select>
                   </div>
                 </div>

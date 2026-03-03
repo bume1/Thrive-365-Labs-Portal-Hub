@@ -535,7 +535,8 @@ const TEMPLATE_POOL_MAPPING = {
   milestone_reached:        ['project', 'recipient', 'system'],
   golive_reminder:          ['project', 'recipient', 'system'],
   announcement:             ['announcement', 'recipient', 'system'],
-  welcome_email:            ['account', 'recipient', 'system']
+  welcome_email:            ['account', 'recipient', 'system'],
+  task_attachment:           ['task', 'project', 'recipient', 'system']
 };
 
 // Compute the merged variables array for a template from its pools
@@ -822,6 +823,21 @@ const DEFAULT_EMAIL_TEMPLATES = [
     subject: 'Welcome to Thrive 365 Labs — Your Account is Ready',
     body: 'Welcome, {{recipientName}}!\n\nYour account has been created. Use the details below to log in for the first time. You will be prompted to set a new password after your first login.\n\nUsername / Email: {{recipientEmail}}\nTemporary Password: {{temporaryPassword}}\n\nLog in here: {{loginUrl}}\n\nThrive 365 Labs',
     htmlBody: null,
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'task_attachment',
+    name: 'Task Attachment — New Document',
+    category: 'automated',
+    subject: 'New Document Added: {{taskName}}',
+    body: 'A new file "{{fileName}}" has been added to the task "{{taskName}}" in your project "{{projectName}}".\n\nView it in your portal:\n{{portalLink}}\n\nThrive 365 Labs',
+    htmlBody: null,
+    variables: [
+      { key: 'taskName', label: 'Task Name', example: 'Install AU480 Analyzer' },
+      { key: 'fileName', label: 'File Name', example: 'setup-guide.pdf' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'portalLink', label: 'Portal Link', example: 'https://thrive365labs.live/portal/valley-medical#task-42' }
+    ],
     isDefault: true, updatedAt: null, updatedBy: null
   }
 ];
@@ -3416,6 +3432,45 @@ app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, requ
     
     tasks[taskIdx].files.push(fileEntry);
     await db.set(`tasks_${projectId}`, tasks);
+    
+    if (tasks[taskIdx].showToClient) {
+      try {
+        const appBaseUrl = `${req.protocol}://${req.get('host')}`;
+        const slug = project.slug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const portalLink = `${appBaseUrl}/portal/${slug}#task-${taskId}`;
+        const allUsers = await getUsers();
+        const clientUsers = allUsers.filter(u => u.role === 'client' && u.assignedProjects && u.assignedProjects.includes(projectId));
+        const templates = await getEmailTemplates();
+        const tpl = getTemplateById(templates, 'task_attachment');
+        for (const client of clientUsers) {
+          const vars = {
+            taskName: tasks[taskIdx].taskTitle || tasks[taskIdx].clientName || tasks[taskIdx].name || 'Task',
+            fileName: fileEntry.name,
+            projectName: project.name || project.clientName,
+            portalLink,
+            recipientName: client.name || client.email,
+            recipientEmail: client.email,
+            appUrl: appBaseUrl
+          };
+          const subject = renderTemplate(tpl.subject, vars);
+          const body = renderTemplate(tpl.body, vars);
+          const htmlBody = buildHtmlEmail(body, null, portalLink, 'View in Portal', null, appBaseUrl);
+          await queueNotification('task_attachment', client.id, client.email, client.name || client.email, {
+            subject,
+            body,
+            htmlBody,
+            ctaUrl: portalLink,
+            ctaLabel: 'View in Portal'
+          }, {
+            relatedEntityId: taskId,
+            relatedEntityType: 'task',
+            createdBy: req.user.id
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to queue task attachment notifications:', notifErr);
+      }
+    }
     
     res.json({ message: 'File uploaded successfully', file: fileEntry });
   } catch (error) {

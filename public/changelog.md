@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.20.1 - March 3, 2026
+
+#### Improvements
+- Improve project completion validation for soft pilot tasks
+
+
 ### Version 3.20.0 - March 3, 2026
 
 #### New Features
