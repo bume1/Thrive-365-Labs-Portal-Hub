@@ -9938,7 +9938,8 @@ app.put('/api/service-reports/:id/complete', authenticateToken, requireServiceAc
             driveWebContentLink: serviceReports[reportIndex].driveWebContentLink || null,
             createdAt: new Date().toISOString(),
             uploadedBy: 'system',
-            uploadedByName: 'Thrive 365 Labs'
+            uploadedByName: 'Thrive 365 Labs',
+            active: true
           });
           await db.set('client_documents', clientDocuments);
           console.log(`✅ Completed assigned report auto-added to client files for ${client.slug}`);
@@ -13344,6 +13345,26 @@ app.listen(PORT, () => {
       }
     } catch (err) {
       console.error('Admin lockout recovery failed:', err.message);
+    }
+  })();
+
+  // Fix service report documents missing active flag
+  (async () => {
+    try {
+      const docs = (await db.get('client_documents')) || [];
+      let fixed = 0;
+      docs.forEach(d => {
+        if (d.serviceReportId && d.active === undefined) {
+          d.active = true;
+          fixed++;
+        }
+      });
+      if (fixed > 0) {
+        await db.set('client_documents', docs);
+        console.log(`🔧 Fixed ${fixed} service report document(s) missing active flag`);
+      }
+    } catch (err) {
+      console.error('Service report doc fix failed:', err.message);
     }
   })();
 

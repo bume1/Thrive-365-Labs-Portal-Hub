@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.22.4 - March 3, 2026
+
+#### Changes
+- Remove requirement for soft-pilot checklist before project completion
+
+
 ### Version 3.22.3 - March 3, 2026
 
 #### Changes
