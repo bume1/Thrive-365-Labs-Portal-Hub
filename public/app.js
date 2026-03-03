@@ -4657,7 +4657,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                   <div className="border-l border-gray-300 mx-2"></div>
                   <button
                     onClick={() => setShowSoftPilotChecklist(true)}
-                    className="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 bg-gradient-to-r from-primary-500 to-accent text-white hover:opacity-90"
+                    className="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent text-white hover:opacity-90"
                     title="View and complete the Soft-Pilot Checklist"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
