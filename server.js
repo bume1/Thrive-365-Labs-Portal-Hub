@@ -471,7 +471,9 @@ const VARIABLE_POOLS = {
       { key: 'timeframe', label: 'Timeframe', example: 'in 3 days' },
       { key: 'daysOverdue', label: 'Days Overdue', example: '5' },
       { key: 'ownerName', label: 'Task Owner', example: 'Jane Doe' },
-      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' }
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' },
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' }
     ]
   },
   project: {
@@ -536,7 +538,11 @@ const TEMPLATE_POOL_MAPPING = {
   golive_reminder:          ['project', 'recipient', 'system'],
   announcement:             ['announcement', 'recipient', 'system'],
   welcome_email:            ['account', 'recipient', 'system'],
-  task_attachment:           ['task', 'project', 'recipient', 'system']
+  task_attachment:           ['task', 'project', 'recipient', 'system'],
+  subtask_deadline:          ['task', 'project', 'recipient', 'system'],
+  subtask_overdue:           ['task', 'project', 'recipient', 'system'],
+  subtask_overdue_escalation:['task', 'project', 'recipient', 'system'],
+  task_assignment:           ['task', 'project', 'recipient', 'system']
 };
 
 // Compute the merged variables array for a template from its pools
@@ -626,6 +632,28 @@ function resolveTaskVars(task, project, appBaseUrl) {
   };
 }
 
+function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
+  const dueDate = subtask.dueDate ? new Date(subtask.dueDate) : null;
+  const now = new Date();
+  const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
+  const owner = subtask.owner || '';
+  return {
+    taskTitle: subtask.title || '',
+    subtaskTitle: subtask.title || '',
+    parentTaskTitle: parentTask.taskTitle || '',
+    phase: parentTask.phase || '',
+    dueDate: dueDate ? dueDate.toLocaleDateString() : '',
+    timeframe: daysUntilDue !== null
+      ? (daysUntilDue === 0 ? 'today' : daysUntilDue === 1 ? 'tomorrow' : daysUntilDue > 0 ? `in ${daysUntilDue} days` : `${Math.abs(daysUntilDue)} days ago`)
+      : '',
+    daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
+    ownerName: owner,
+    taskLink: project && project.clientLinkSlug
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${parentTask.id}`
+      : appBaseUrl
+  };
+}
+
 function resolveProjectVars(project, tasks, appBaseUrl) {
   const completedCount = tasks ? tasks.filter(t => t.completed).length : 0;
   const totalCount = tasks ? tasks.length : 0;
@@ -665,6 +693,64 @@ function buildTemplateVars(pools, recipientUser, appBaseUrl) {
 }
 
 // Default email templates — seeded on first access, admin can edit via UI
+async function sendAssignmentNotification(ownerEmail, task, subtask, project, triggeringUserId) {
+  try {
+    if (!ownerEmail) return;
+    const allUsers = await getUsers();
+    const ownerUser = allUsers.find(u => u.email === ownerEmail);
+    if (!ownerUser || ownerUser.emailUnsubscribed) return;
+    if (ownerUser.id === triggeringUserId) return;
+
+    const appBaseUrl = await getAppBaseUrl();
+    const templates = await getEmailTemplates();
+    const template = getTemplateById(templates, 'task_assignment');
+
+    const isSubtask = !!subtask;
+    const taskTitle = isSubtask ? (subtask.title || '') : (task.taskTitle || '');
+    const dueDate = isSubtask ? subtask.dueDate : task.dueDate;
+    const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
+    const taskLink = project && project.clientLinkSlug
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${task.id}`
+      : appBaseUrl;
+
+    const taskVars = {
+      taskTitle,
+      subtaskTitle: isSubtask ? (subtask.title || '') : '',
+      parentTaskTitle: isSubtask ? (task.taskTitle || '') : '',
+      phase: task.phase || '',
+      dueDate: dueDateFormatted,
+      taskLink,
+      ownerName: ownerEmail,
+      timeframe: '',
+      daysOverdue: '0'
+    };
+    const projVars = {
+      projectName: project.name || project.clientName || '',
+      projectLink: project.clientLinkSlug ? `${appBaseUrl}/launch/${project.clientLinkSlug}` : appBaseUrl
+    };
+
+    const allVars = buildTemplateVars({ task: taskVars, project: projVars }, ownerUser, appBaseUrl);
+
+    const subject = renderTemplate(template.subject, allVars);
+    const body = renderTemplate(template.body, allVars);
+    const renderedHtml = template.htmlBody
+      ? renderTemplate(template.htmlBody, allVars)
+      : null;
+    const htmlBody = buildHtmlEmail(body, renderedHtml, taskLink, 'View Task', null, appBaseUrl);
+    const entityId = isSubtask ? `${task.id}-${subtask.id}` : String(task.id);
+
+    await queueNotification('task_assignment', ownerUser.id, ownerUser.email, ownerUser.name || ownerUser.email, {
+      subject, body, htmlBody, ctaUrl: taskLink, ctaLabel: 'View Task'
+    }, {
+      relatedEntityId: entityId,
+      relatedEntityType: isSubtask ? 'subtask' : 'task',
+      createdBy: triggeringUserId || 'system'
+    });
+  } catch (err) {
+    console.error('Failed to send assignment notification:', err);
+  }
+}
+
 const DEFAULT_EMAIL_TEMPLATES = [
   {
     id: 'service_report_signature',
@@ -837,6 +923,73 @@ const DEFAULT_EMAIL_TEMPLATES = [
       { key: 'fileName', label: 'File Name', example: 'setup-guide.pdf' },
       { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
       { key: 'portalLink', label: 'Portal Link', example: 'https://thrive365labs.live/portal/valley-medical#task-42' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_deadline',
+    name: 'Subtask Deadline Warning',
+    category: 'automated',
+    subject: 'Subtask due {{timeframe}}: {{subtaskTitle}} — {{projectName}}',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" in {{phase}} is due {{dueDate}}. Project: {{projectName}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/15/2026' },
+      { key: 'timeframe', label: 'Timeframe', example: 'in 3 days' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_overdue',
+    name: 'Subtask Overdue — Owner',
+    category: 'automated',
+    subject: 'OVERDUE ({{daysOverdue}}d): {{subtaskTitle}} — {{projectName}}',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" in {{phase}} was due {{dueDate}} and is now {{daysOverdue}} day(s) overdue. Project: {{projectName}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/01/2026' },
+      { key: 'daysOverdue', label: 'Days Overdue', example: '5' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_overdue_escalation',
+    name: 'Subtask Overdue — Admin Escalation',
+    category: 'automated',
+    subject: 'ESCALATION: Subtask {{daysOverdue}}d overdue — {{subtaskTitle}} ({{projectName}})',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" assigned to {{ownerName}} in project "{{projectName}}" is {{daysOverdue}} days overdue. Due date: {{dueDate}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'ownerName', label: 'Owner Name', example: 'Jane Doe' },
+      { key: 'dueDate', label: 'Due Date', example: '03/01/2026' },
+      { key: 'daysOverdue', label: 'Days Overdue', example: '10' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'task_assignment',
+    name: 'Task Assignment — New Assignment',
+    category: 'automated',
+    subject: 'New Task Assigned: {{taskTitle}} — {{projectName}}',
+    body: 'You have been assigned to "{{taskTitle}}" in project "{{projectName}}".\n\nPhase: {{phase}}\nDue Date: {{dueDate}}\n\nView it here: {{taskLink}}\n\nThrive 365 Labs',
+    htmlBody: null,
+    variables: [
+      { key: 'taskTitle', label: 'Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/15/2026' },
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' }
     ],
     isDefault: true, updatedAt: null, updatedBy: null
   }
@@ -1026,6 +1179,38 @@ const scanAndQueueNotifications = async () => {
               for (const admin of admins) {
                 const escVars = buildTemplateVars({ task: { ...taskVars, ownerName: owner.name }, project: projVars }, admin, appBaseUrl);
                 await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, task.id?.toString(), 'task');
+              }
+            }
+          }
+
+          for (const subtask of (task.subtasks || [])) {
+            if (subtask.completed || subtask.notApplicable || !subtask.dueDate || !subtask.owner) continue;
+            const stDueDate = new Date(subtask.dueDate);
+            const stDaysUntilDue = Math.floor((stDueDate - now) / (1000 * 60 * 60 * 24));
+
+            const stOwner = users.find(u => u.email === subtask.owner);
+            if (!stOwner || stOwner.emailUnsubscribed) continue;
+
+            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl);
+            const stCtaUrl = stVars.taskLink;
+            const stEntityId = `${task.id}-${subtask.id}`;
+
+            if (stDaysUntilDue >= 0 && daysBefore.includes(stDaysUntilDue)) {
+              const allVars = buildTemplateVars({ task: stVars, project: projVars }, stOwner, appBaseUrl);
+              await renderAndQueue('subtask_deadline', stOwner, allVars, 'View Task', stCtaUrl, stEntityId, 'subtask');
+            }
+
+            if (stDaysUntilDue < 0) {
+              const allVars = buildTemplateVars({ task: stVars, project: projVars }, stOwner, appBaseUrl);
+              await renderAndQueue('subtask_overdue', stOwner, allVars, 'View Task', stCtaUrl, stEntityId, 'subtask');
+
+              const stDaysOverdue = Math.abs(stDaysUntilDue);
+              if (stDaysOverdue >= escalationDays) {
+                const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
+                for (const admin of admins) {
+                  const escVars = buildTemplateVars({ task: { ...stVars, ownerName: stOwner.name }, project: projVars }, admin, appBaseUrl);
+                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, stEntityId, 'subtask');
+                }
               }
             }
           }
@@ -2938,6 +3123,13 @@ app.post('/api/projects/:projectId/tasks/:taskId/subtasks', authenticateToken, a
     if (!tasks[idx].subtasks) tasks[idx].subtasks = [];
     tasks[idx].subtasks.push(subtask);
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (subtask.owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(subtask.owner, tasks[idx], subtask, project, req.user.id);
+      }
+    }
     
     res.json(subtask);
   } catch (error) {
@@ -2966,6 +3158,7 @@ app.put('/api/projects/:projectId/tasks/:taskId/subtasks/:subtaskId', authentica
     const subtaskIdx = tasks[taskIdx].subtasks.findIndex(s => String(s.id) === String(subtaskId));
     if (subtaskIdx === -1) return res.status(404).json({ error: 'Subtask not found' });
     
+    const previousSubtaskOwner = tasks[taskIdx].subtasks[subtaskIdx].owner;
     if (title !== undefined) tasks[taskIdx].subtasks[subtaskIdx].title = title;
     if (owner !== undefined) tasks[taskIdx].subtasks[subtaskIdx].owner = owner;
     if (dueDate !== undefined) tasks[taskIdx].subtasks[subtaskIdx].dueDate = dueDate;
@@ -2987,6 +3180,14 @@ app.put('/api/projects/:projectId/tasks/:taskId/subtasks/:subtaskId', authentica
     }
     
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (owner !== undefined && owner !== previousSubtaskOwner && owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(owner, tasks[taskIdx], tasks[taskIdx].subtasks[subtaskIdx], project, req.user.id);
+      }
+    }
+
     res.json(tasks[taskIdx].subtasks[subtaskIdx]);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -3981,6 +4182,14 @@ app.post('/api/projects/:id/tasks', authenticateToken, async (req, res) => {
     };
     tasks.push(newTask);
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (newTask.owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(newTask.owner, newTask, null, project, req.user.id);
+      }
+    }
+
     res.json(newTask);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -4046,6 +4255,7 @@ app.put('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (req,
       }
     }
 
+    const previousOwner = task.owner;
     const wasCompleted = task.completed;
 
     // Server-side validation: Check for incomplete subtasks before allowing completion
@@ -4098,6 +4308,13 @@ app.put('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (req,
 
       // Check for phase completion
       checkPhaseCompletion(projectId, tasks, completedTask);
+    }
+
+    if (sanitizedUpdates.owner && sanitizedUpdates.owner !== previousOwner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(sanitizedUpdates.owner, tasks[idx], null, project, req.user.id);
+      }
     }
     
     res.json(tasks[idx]);

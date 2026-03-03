@@ -4,6 +4,16 @@
 
 ---
 
+### Version 3.20.3 - March 3, 2026
+
+#### Improvements
+- Update project phase names to use "Financials" instead of "Billing"
+
+#### Changes
+- Transitioned from Plan to Build mode
+- Combine onboarding documents from tasks and admin uploads
+
+
 ### Version 3.20.2 - March 3, 2026
 
 #### Improvements

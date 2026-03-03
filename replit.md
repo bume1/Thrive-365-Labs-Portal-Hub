@@ -47,6 +47,8 @@ Preferred communication style: Simple, everyday language.
 - **Timeline Sorting**: Tasks in timeline views are sorted by due date (earliest first), with tasks without due dates appearing last.
 - **Data Normalization**: Admin utilities for normalizing subtask data inconsistencies and regenerating slugs.
 - **Idempotent HubSpot Sync**: Tasks and notes store HubSpot IDs to prevent duplicates on subsequent syncs.
+- **Subtask Notifications**: Subtasks with owners and due dates receive the same deadline warning, overdue, and admin escalation notifications as main tasks. Uses templates `subtask_deadline`, `subtask_overdue`, and `subtask_overdue_escalation`.
+- **Task Assignment Notifications**: Automatic email notification when a task or subtask is assigned to someone (on create or owner change). Uses `task_assignment` template. Skips self-assignment (won't notify if you assign to yourself).
 
 ### System Design Choices
 - **Modularity**: Clear separation of frontend and backend.
