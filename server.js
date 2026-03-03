@@ -4694,9 +4694,11 @@ app.get('/api/client-portal/data', authenticateToken, async (req, res) => {
     const announcements = (await db.get('announcements')) || [];
     const activities = (await db.get('activity_log')) || [];
     
-    // Get client's assigned projects
+    // Get client's assigned projects (exclude unpublished/draft and completed)
     const clientProjects = projects.filter(p => 
-      (req.user.assignedProjects || []).includes(p.id)
+      (req.user.assignedProjects || []).includes(p.id) &&
+      (p.publishedStatus || 'published') === 'published' &&
+      p.status !== 'Complete' && p.status !== 'Completed'
     );
     
     // Get tasks for each project (only client-visible ones)
@@ -4791,7 +4793,9 @@ app.get('/api/client-portal/soft-pilot', authenticateToken, async (req, res) => 
 
     const projects = await getProjects();
     const clientProjects = projects.filter(p =>
-      (req.user.assignedProjects || []).includes(p.id)
+      (req.user.assignedProjects || []).includes(p.id) &&
+      (p.publishedStatus || 'published') === 'published' &&
+      p.status !== 'Complete' && p.status !== 'Completed'
     );
 
     if (clientProjects.length === 0) {

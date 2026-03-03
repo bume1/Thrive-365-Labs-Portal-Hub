@@ -4,6 +4,16 @@
 
 ---
 
+### Version 3.21.0 - March 3, 2026
+
+#### New Features
+- Add file upload activity to project notes log
+- Add overdue and assignment notifications for subtasks
+
+#### Changes
+- Redirect users to the correct login page after logging out of the launch segment
+
+
 ### Version 3.20.3 - March 3, 2026
 
 #### Improvements
