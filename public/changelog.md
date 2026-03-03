@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.22.2 - March 3, 2026
+
+#### Changes
+- Inform users when project completion fails due to unmet requirements
+
+
 ### Version 3.22.1 - March 3, 2026
 
 #### Improvements

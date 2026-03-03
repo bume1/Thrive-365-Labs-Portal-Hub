@@ -3738,16 +3738,14 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
       const userAssignedProjects = req.user.assignedProjects || [];
       // Include assigned projects and any projects the user created
       projects = projects.filter(p => userAssignedProjects.includes(p.id) || p.createdBy === req.user.id);
-
-      // Non-admins only see published projects unless they created the board or have project-level admin access (managers)
-      const accessLevels = req.user.projectAccessLevels || {};
-      projects = projects.filter(p => {
-        const pubStatus = p.publishedStatus || 'published';
-        if (pubStatus === 'published') return true;
-        if (p.createdBy === req.user.id) return true;
-        return accessLevels[p.id] === 'admin';
-      });
     }
+
+    // Draft projects are only visible to the user who created them — applies to ALL users including admins
+    projects = projects.filter(p => {
+      const pubStatus = p.publishedStatus || 'published';
+      if (pubStatus === 'published') return true;
+      return p.createdBy === req.user.id;
+    });
     
     const projectsWithDetails = await Promise.all(projects.map(async (project) => {
       const template = templates.find(t => t.id === project.template);
@@ -3918,17 +3916,10 @@ app.get('/api/projects/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this project' });
     }
 
-    // Draft projects: only visible to admins, the creator, or project-level admins (managers)
-    const isAdmin = req.user.role === config.ROLES.ADMIN;
-    if (!isAdmin) {
-      const pubStatus = project.publishedStatus || 'published';
-      if (pubStatus === 'draft') {
-        const isCreator = project.createdBy === req.user.id;
-        const accessLevel = (req.user.projectAccessLevels || {})[project.id];
-        if (!isCreator && accessLevel !== 'admin') {
-          return res.status(403).json({ error: 'This project is in draft mode' });
-        }
-      }
+    // Draft projects are only visible to the user who created them — applies to ALL users
+    const pubStatus = project.publishedStatus || 'published';
+    if (pubStatus === 'draft' && project.createdBy !== req.user.id) {
+      return res.status(403).json({ error: 'This project is in draft mode' });
     }
     
     const templates = await db.get('templates') || [];

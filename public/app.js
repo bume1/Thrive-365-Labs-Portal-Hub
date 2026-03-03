@@ -2470,7 +2470,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                         <option value="draft">Draft (hidden from team members)</option>
                         <option value="published">Published (visible to all assigned users)</option>
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Draft projects are only visible to admins, project managers, and the board creator.</p>
+                      <p className="text-xs text-gray-500 mt-1">Draft projects are only visible to the user who created the board.</p>
                     </div>
                   );
                 })()}
