@@ -683,7 +683,7 @@ function resolveTaskVars(task, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${task.id}`
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
       : appBaseUrl
   };
 }
@@ -705,7 +705,7 @@ function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${parentTask.id}`
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`
       : appBaseUrl
   };
 }
@@ -768,7 +768,7 @@ async function sendAssignmentNotification(ownerEmail, task, subtask, project, tr
     const dueDate = isSubtask ? subtask.dueDate : task.dueDate;
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
     const taskLink = project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${task.id}`
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
       : appBaseUrl;
 
     const taskVars = {
