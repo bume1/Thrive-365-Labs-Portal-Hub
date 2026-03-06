@@ -434,7 +434,7 @@ const cancelProjectNotifications = async (projectId, taskIds) => {
 const BASE_HTML_EMAIL_WRAPPER = `
 <div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -448,7 +448,7 @@ const BASE_HTML_EMAIL_WRAPPER = `
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
 const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -938,7 +938,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
     htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
