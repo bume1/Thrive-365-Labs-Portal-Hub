@@ -768,7 +768,9 @@ async function sendAssignmentNotification(ownerEmail, task, subtask, project, tr
     const dueDate = isSubtask ? subtask.dueDate : task.dueDate;
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
     const taskLink = project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
+      ? (ownerUser.role === 'client' && ownerUser.slug
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
       : appBaseUrl;
 
     const taskVars = {
