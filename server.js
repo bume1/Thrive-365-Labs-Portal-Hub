@@ -253,6 +253,21 @@ const queueNotification = async (type, recipientUserId, recipientEmail, recipien
     );
     if (isDuplicate) return null;
 
+    // Dedup: skip if the same notification was sent within the cooldown window.
+    // This prevents repeat-send storms after the pending queue drains and the
+    // scanner re-queues the same trigger (e.g. a task that is still overdue).
+    const cooldownHours = (config.NOTIFICATION_COOLDOWN_HOURS && config.NOTIFICATION_COOLDOWN_HOURS[type]) ?? 20;
+    const cooldownCutoff = new Date(Date.now() - cooldownHours * 3600 * 1000).toISOString();
+    const log = (await db.get('notification_log')) || [];
+    const recentlySent = log.some(n =>
+      n.type === type &&
+      n.recipientEmail === recipientEmail &&
+      n.relatedEntityId === (options.relatedEntityId || null) &&
+      n.status === 'sent' &&
+      n.sentAt && n.sentAt >= cooldownCutoff
+    );
+    if (recentlySent) return null;
+
     const notification = {
       id: uuidv4(),
       type,
@@ -368,6 +383,46 @@ const processNotificationQueue = async () => {
     }
   } catch (err) {
     console.error('[QUEUE] Processing error:', err);
+  }
+};
+
+// Cancel all pending task/project notifications for a project when it transitions
+// to 'paused' or 'completed'. Service report notifications are intentionally excluded —
+// those are standalone documents that remain relevant regardless of project status.
+const cancelProjectNotifications = async (projectId, taskIds) => {
+  try {
+    const queue = (await db.get('pending_notifications')) || [];
+    const taskIdSet = new Set(taskIds.map(String));
+
+    const toCancel = [];
+    const remaining = [];
+    for (const n of queue) {
+      const isProjectNotification =
+        n.relatedEntityType === 'project' && n.relatedEntityId === projectId;
+      const isTaskNotification =
+        n.relatedEntityType === 'task' && taskIdSet.has(String(n.relatedEntityId));
+
+      if (isProjectNotification || isTaskNotification) {
+        toCancel.push({ ...n, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelReason: 'project_status_change' });
+      } else {
+        remaining.push(n);
+      }
+    }
+
+    if (toCancel.length === 0) return;
+
+    await db.set('pending_notifications', remaining);
+
+    const log = (await db.get('notification_log')) || [];
+    log.unshift(...toCancel);
+    if (log.length > config.NOTIFICATION_LOG_MAX_ENTRIES) {
+      log.length = config.NOTIFICATION_LOG_MAX_ENTRIES;
+    }
+    await db.set('notification_log', log);
+
+    console.log(`[NOTIFICATIONS] Cancelled ${toCancel.length} pending notification(s) for project ${projectId}`);
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Error cancelling project notifications:', err);
   }
 };
 
@@ -1306,7 +1361,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const user of [...projectClients, ...teamMembers]) {
               const allVars = buildTemplateVars({ project: projVars }, user, appBaseUrl);
-              await renderAndQueue('milestone_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('golive_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
             }
           }
         }
@@ -3974,12 +4029,11 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
 
     const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'publishedStatus', 'clientPortalDomain', 'goLiveDate'];
     
-    // Capture old values before mutation
+    // Capture old values before the update loop
     const oldPublishedStatus = projects[idx].publishedStatus || 'draft';
-
-    // Check if client name is being changed - regenerate slug
     const oldClientName = projects[idx].clientName;
     const newClientName = req.body.clientName;
+    const oldStatus = projects[idx].status;
     
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
@@ -4059,6 +4113,16 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
           console.error('Failed to re-hold notifications on unpublish:', err.message);
         }
       })();
+    }
+
+    // Cancel pending task/project notifications when a project is paused or completed.
+    // Runs non-blocking so the response is not delayed.
+    const newStatus = req.body.status;
+    if (newStatus !== undefined && newStatus !== oldStatus && ['paused', 'completed'].includes(newStatus)) {
+      getRawTasks(req.params.id).then(projectTasks => {
+        const taskIds = (projectTasks || []).map(t => String(t.id));
+        return cancelProjectNotifications(req.params.id, taskIds);
+      }).catch(err => console.error('[NOTIFICATIONS] Failed to cancel project notifications on status change:', err));
     }
 
     // Cascade clientName changes to service/validation reports (non-blocking)

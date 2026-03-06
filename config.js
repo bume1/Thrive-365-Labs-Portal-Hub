@@ -153,6 +153,20 @@ const INVENTORY_REMINDER_DAYS = parseInt(process.env.INVENTORY_REMINDER_DAYS || 
 const SERVICE_REPORT_FOLLOWUP_DAYS = parseInt(process.env.SERVICE_REPORT_FOLLOWUP_DAYS || '3', 10);
 const MILESTONE_THRESHOLDS = (process.env.MILESTONE_THRESHOLDS || '25,50,75,100').split(',').map(Number);
 const GOLIVE_REMINDER_DAYS_BEFORE = (process.env.GOLIVE_REMINDER_DAYS_BEFORE || '7,14,30').split(',').map(Number);
+// Cooldown window (hours) per notification type.
+// After a notification of a given type is sent to a recipient for the same entity,
+// no further notification of that type will be queued until this window has elapsed.
+// This prevents repeat-send storms when the queue drains and the scanner re-runs.
+const NOTIFICATION_COOLDOWN_HOURS = Object.freeze({
+  task_deadline:              20,   // at most once per day per task
+  task_overdue:               20,   // at most once per day per task
+  task_overdue_escalation:    20,   // at most once per day per task (admin escalation)
+  inventory_reminder:         144,  // at most once per 6 days per client
+  service_report_signature:   20,   // at most once per day per report
+  service_report_review:      20,   // at most once per day per report
+  golive_reminder:            20,   // at most once per day per project
+  milestone_reached:          9999  // effectively one-time (also guarded by lastMilestoneNotified)
+});
 
 // ---- Default Admin (initial setup only) ----
 const DEFAULT_ADMIN = Object.freeze({
@@ -235,6 +249,7 @@ module.exports = {
   SERVICE_REPORT_FOLLOWUP_DAYS,
   MILESTONE_THRESHOLDS,
   GOLIVE_REMINDER_DAYS_BEFORE,
+  NOTIFICATION_COOLDOWN_HOURS,
   // Public config
   getPublicConfig
 };
