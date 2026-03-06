@@ -1278,12 +1278,6 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
   const handleEditProject = async () => {
     if (!editingProject) return;
     
-    // Require Soft-Pilot Checklist submission before marking project as completed
-    if (editingProject.status === 'completed' && !editingProject.softPilotChecklistSubmitted) {
-      alert('The Soft-Pilot Checklist must be submitted before marking this project as completed. Please complete the checklist in the Sprint 3: Soft-Pilot stage first.');
-      return;
-    }
-    
     try {
       const updates = {
         name: editingProject.name,
