@@ -8433,6 +8433,10 @@ const App = () => {
     if (match) {
       setPendingInternalSlug(match[1]);
     }
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#task-')) {
+      setScrollToTaskId(hash.replace('#task-', ''));
+    }
   }, []);
 
   useEffect(() => {
