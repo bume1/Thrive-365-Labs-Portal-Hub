@@ -244,12 +244,12 @@ const logActivity = async (userId, userName, action, entityType, entityId, detai
 const queueNotification = async (type, recipientUserId, recipientEmail, recipientName, templateData, options = {}) => {
   try {
     const queue = (await db.get('pending_notifications')) || [];
-    // Dedup: skip if identical pending notification exists
+    // Dedup: skip if identical pending or held notification exists
     const isDuplicate = queue.some(n =>
       n.type === type &&
       n.recipientEmail === recipientEmail &&
       n.relatedEntityId === (options.relatedEntityId || null) &&
-      n.status === 'pending'
+      (n.status === 'pending' || n.status === 'held')
     );
     if (isDuplicate) return null;
 
@@ -261,11 +261,12 @@ const queueNotification = async (type, recipientUserId, recipientEmail, recipien
       recipientName,
       channel: 'email',
       triggerDate: options.triggerDate || new Date().toISOString(),
-      status: 'pending',
+      status: options.status || 'pending',
       retryCount: 0,
       maxRetries: config.NOTIFICATION_MAX_RETRIES,
       relatedEntityId: options.relatedEntityId || null,
       relatedEntityType: options.relatedEntityType || null,
+      relatedProjectId: options.relatedProjectId || null,
       templateData: {
         subject: templateData.subject,
         body: templateData.body,
@@ -701,6 +702,8 @@ async function sendAssignmentNotification(ownerEmail, task, subtask, project, tr
     if (!ownerUser || ownerUser.emailUnsubscribed) return;
     if (ownerUser.id === triggeringUserId) return;
 
+    const isHeld = project && project.publishedStatus === 'draft';
+
     const appBaseUrl = await getAppBaseUrl();
     const templates = await getEmailTemplates();
     const template = getTemplateById(templates, 'task_assignment');
@@ -744,7 +747,8 @@ async function sendAssignmentNotification(ownerEmail, task, subtask, project, tr
     }, {
       relatedEntityId: entityId,
       relatedEntityType: isSubtask ? 'subtask' : 'task',
-      createdBy: triggeringUserId || 'system'
+      createdBy: triggeringUserId || 'system',
+      ...(isHeld ? { status: 'held', relatedProjectId: project.id } : {})
     });
   } catch (err) {
     console.error('Failed to send assignment notification:', err);
@@ -3970,6 +3974,9 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
 
     const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'publishedStatus', 'clientPortalDomain', 'goLiveDate'];
     
+    // Capture old values before mutation
+    const oldPublishedStatus = projects[idx].publishedStatus || 'draft';
+
     // Check if client name is being changed - regenerate slug
     const oldClientName = projects[idx].clientName;
     const newClientName = req.body.clientName;
@@ -4008,6 +4015,51 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
     }
     
     await db.set('projects', projects);
+
+    // Release held notifications when project is published (draft → published)
+    const newPublishedStatus = req.body.publishedStatus;
+    if (newPublishedStatus === 'published' && oldPublishedStatus === 'draft') {
+      (async () => {
+        try {
+          const queue = (await db.get('pending_notifications')) || [];
+          let released = 0;
+          queue.forEach(n => {
+            if (n.status === 'held' && n.relatedProjectId === projects[idx].id) {
+              n.status = 'pending';
+              released++;
+            }
+          });
+          if (released > 0) {
+            await db.set('pending_notifications', queue);
+            console.log(`📬 Released ${released} held notification(s) for project "${projects[idx].name}" on publish`);
+          }
+        } catch (err) {
+          console.error('Failed to release held notifications on publish:', err.message);
+        }
+      })();
+    }
+
+    // Re-hold pending task_assignment notifications when project moves back to draft (published → draft)
+    if (newPublishedStatus === 'draft' && oldPublishedStatus === 'published') {
+      (async () => {
+        try {
+          const queue = (await db.get('pending_notifications')) || [];
+          let reheld = 0;
+          queue.forEach(n => {
+            if (n.status === 'pending' && n.relatedProjectId === projects[idx].id && n.type === 'task_assignment') {
+              n.status = 'held';
+              reheld++;
+            }
+          });
+          if (reheld > 0) {
+            await db.set('pending_notifications', queue);
+            console.log(`🔒 Re-held ${reheld} notification(s) for project "${projects[idx].name}" moved back to draft`);
+          }
+        } catch (err) {
+          console.error('Failed to re-hold notifications on unpublish:', err.message);
+        }
+      })();
+    }
 
     // Cascade clientName changes to service/validation reports (non-blocking)
     if (newClientName && newClientName !== oldClientName) {
@@ -4060,7 +4112,14 @@ app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
     
     // Also delete the project's tasks
     await db.delete(`tasks_${projectId}`);
-    
+
+    // Cancel any held notifications for this project
+    const notifQueue = (await db.get('pending_notifications')) || [];
+    const cleanedQueue = notifQueue.filter(n => !(n.status === 'held' && n.relatedProjectId === projectId));
+    if (cleanedQueue.length !== notifQueue.length) {
+      await db.set('pending_notifications', cleanedQueue);
+    }
+
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
     console.error('Delete project error:', error);
@@ -13307,6 +13366,31 @@ app.listen(PORT, () => {
   setTimeout(processNotificationQueue, 5000);
   setTimeout(scanAndQueueNotifications, 8000);
   console.log('⚡ Notification processors will run immediately at startup (5s / 8s)');
+
+  // Re-hold any pending task_assignment notifications that belong to draft projects
+  // (handles notifications queued before this draft-hold feature was introduced)
+  (async () => {
+    try {
+      const queue = (await db.get('pending_notifications')) || [];
+      const allProjects = await getProjects();
+      const draftProjectIds = new Set(
+        allProjects.filter(p => (p.publishedStatus || 'draft') === 'draft').map(p => p.id)
+      );
+      let held = 0;
+      queue.forEach(n => {
+        if (n.status === 'pending' && n.type === 'task_assignment' && n.relatedProjectId && draftProjectIds.has(n.relatedProjectId)) {
+          n.status = 'held';
+          held++;
+        }
+      });
+      if (held > 0) {
+        await db.set('pending_notifications', queue);
+        console.log(`🔒 Startup: retroactively held ${held} pending notification(s) for draft projects`);
+      }
+    } catch (err) {
+      console.error('Startup: failed to retroactively hold draft notifications:', err.message);
+    }
+  })();
 
   // One-time migrations for service reports
   (async () => {
