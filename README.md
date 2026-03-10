@@ -1,19 +1,67 @@
-# Thrive 365 Labs Web App
+# Thrive 365 Labs — Client Portal Hub
 
 A comprehensive platform for managing clinical laboratory implementations, service operations, and client engagement. The hub integrates launch management, field service reporting, client portals, notification automation, and CRM operations into a unified multi-portal system.
 
 **Current Version**: 3.0.0
+**Licensed To**: Thrive 365 Labs
+**Perpetual License Granted By**: Bianca G. C. Ume, MD, MBA, MS / OnboardHealth (onboardhealth.live)
+**Developer & Technical Support**: Bianca G. C. Ume, MD, MBA, MS (bianca@thrive365labs.com) / Luka - Full-Stack Developer
+
+> **License Notice**: This software is proprietary technology developed and owned by Bianca G. C. Ume, MD, MBA, MS, operating under OnboardHealth. A perpetual, non-transferable license has been granted to Thrive 365 Labs for internal operational use. The underlying codebase, database architecture, and system infrastructure remain the exclusive intellectual property of the licensor. Redistribution, resale, or sublicensing of this software is not permitted without written consent from the licensor.
 
 ---
 
 ## Table of Contents
 
-1. [Technical Stack](#technical-stack)
-2. [Application Portals](#application-portals)
-3. [Usage Guidelines](#usage-guidelines)
-4. [Administrator Reference](#administrator-reference)
-5. [Open Source Licenses](#open-source-licenses)
-6. [Support & Maintenance](#support--maintenance)
+1. [Portal Management Overview](#portal-management-overview)
+2. [Technical Stack](#technical-stack)
+3. [Application Portals](#application-portals)
+4. [Usage Guidelines](#usage-guidelines)
+5. [Administrator Reference](#administrator-reference)
+6. [Backend Access — Security & Structural Needs](#backend-access--security--structural-needs)
+7. [Support & Maintenance](#support--maintenance)
+8. [Open Source Licenses](#open-source-licenses)
+
+---
+
+## Portal Management Overview
+
+Portal management encompasses the operational responsibilities required to maintain and administer the Thrive 365 Labs Client Portal Hub.
+
+### User & Client Account Management
+- Creating, editing, and deactivating user accounts across all roles
+- Assigning role-based permissions and portal access flags
+- Managing client practice profiles, portal slugs, and access credentials
+- Processing password reset requests and first-login flows
+
+### Branding & White-Label Customization
+- Configuring client portal branding: name, welcome message, and primary color per client
+- Uploading client logos and managing branded portal experiences
+- Configuring custom domain settings for client-facing URLs
+- Managing Knowledge Hub and Changelog content
+
+### Reporting & Analytics Access
+- Reviewing the Activity Log and audit trail via Admin Hub
+- Exporting user lists and project data to Excel/CSV
+- Monitoring inventory submissions, support ticket volume, and client activity
+- Reviewing notification delivery history and automation performance
+
+### Notification & Automation Management
+- Enabling/disabling the notification queue and configuring send limits
+- Setting automated reminders for overdue tasks, soft pilot submissions, client nudges, and inventory
+- Managing client email subscription preferences
+- Reviewing notification delivery history
+
+### Resources Required
+
+| Resource | Responsibility |
+|----------|---------------|
+| **Internal Admin** | Day-to-day user management, client onboarding, portal configuration |
+| **Developer (bianca@thrive365labs.com)** | Backend updates, structural changes, integrations, security patches |
+| **Replit Hosting** | Billed to Thrive 365 Labs; autoscale deployment managed by Bianca & Dev. |
+| **Supabase Hosting** | Future upgrade — billed to Thrive 365 Labs as user database grows to require upgraded database hosting |
+| **HubSpot CRM** | Maintained by Thrive team; sync configured by developer |
+| **Google Drive** | Document storage; credentials managed via environment secrets |
 
 ---
 
@@ -26,14 +74,14 @@ A comprehensive platform for managing clinical laboratory implementations, servi
 | **Frontend** | React 18 (CDN via unpkg) | In-browser Babel JSX transpilation |
 | **Styling** | Tailwind CSS (CDN) | Inline config per portal |
 | **Database** | Replit Key-Value Store | No SQL; key-value pairs |
-| **Authentication** | JWT + bcryptjs | 24-hour token expiry, 10-round salt |
+| **Authentication** | JWT + bcryptjs | 24-hour token expiry |
 | **PDF Generation** | PDFKit, PDFMake | Service and validation reports |
 
 ### External Integrations
 
 | Service | Purpose |
 |---------|---------|
-| **HubSpot** | CRM integration: deal/company pipeline sync, stage mapping, ticket management, file storage |
+| **HubSpot** | CRM integration: deal/company pipeline sync, stage mapping, ticket management |
 | **Google Drive** | Document storage for soft-pilot checklists and file hosting |
 | **Resend Email** | Automated email notifications, reminders, and subscription management |
 
@@ -45,12 +93,12 @@ A comprehensive platform for managing clinical laboratory implementations, servi
 | `PORT` | No (default: 3000) | Server port |
 | `HUBSPOT_PRIVATE_APP_TOKEN` | For HubSpot | HubSpot API access |
 | `HUBSPOT_WEBHOOK_SECRET` | Recommended | Webhook request validation |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | For Google Drive | Google service account credentials (JSON) |
-| `REPLIT_CONNECTORS_HOSTNAME` | Auto-set by Replit | Required for HubSpot/GDrive OAuth connectors |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | For Google Drive | Google service account credentials |
+| `REPLIT_CONNECTORS_HOSTNAME` | Auto-set by Replit | Required for HubSpot/GDrive connectors |
+
+> **Security Notice**: All environment variable values are stored in Replit Secrets and are not visible to collaborators. Contact bianca@onboardhealth.live for any credential or secrets management needs.
 
 ### Custom Domain Configuration
-
-The application supports custom domains for client portal URLs (e.g., `launch.yourdomain.com/{slug}`).
 
 Configure via **Admin Hub > Settings > Client Portal Domain**.
 
@@ -60,15 +108,15 @@ Configure via **Admin Hub > Settings > Client Portal Domain**.
 
 | Portal | URL | Auth | Purpose |
 |--------|-----|------|---------|
-| Unified Login | `/login` | No | Central authentication hub; routes users to correct portal |
+| Unified Login | `/login` | No | Central authentication hub |
 | Admin Hub | `/admin` | Yes | System administration, user management, automation |
 | Launch App | `/launch/home` | Yes | Project implementation tracking and task management |
 | Project View | `/launch/:slug` | Yes | Individual project board |
 | Client Portal | `/portal/:slug` | Yes | Client-facing progress, inventory, documents, support |
 | Service Portal | `/service-portal` | Yes | Field service reports, validation assignments, PDF generation |
-| Knowledge Hub | `/knowledge` | No (Public) | Documentation and guides |
-| Changelog | `/changelog` | No (Public) | Version history |
-| Link Directory | `/directory` | No (Public) | Resource links and quick references |
+| Knowledge Hub | `/knowledge` | Public | Documentation and guides |
+| Changelog | `/changelog` | Public | Version history |
+| Link Directory | `/directory` | Public | Resource links and quick references |
 
 ---
 
@@ -83,10 +131,8 @@ Configure via **Admin Hub > Settings > Client Portal Domain**.
 | **Client** | Client portal only (assigned practice) |
 | **Vendor** | Service portal for assigned clients |
 
-In addition to roles, individual permission flags control access to specific portals:
-
-| Flag | Portal Unlocked |
-|------|----------------|
+| Permission Flag | Portal Unlocked |
+|-----------------|----------------|
 | `hasImplementationsAccess` | Launch App (`/launch`) |
 | `hasAdminHubAccess` | Admin Hub (`/admin`) |
 | `hasServicePortalAccess` | Service Portal (`/service-portal`) |
@@ -95,177 +141,140 @@ In addition to roles, individual permission flags control access to specific por
 ### Portal Feature Overview
 
 #### Unified Login Hub (`/login`)
-- Single sign-in for all roles; routes to appropriate portal after authentication
-- Forgot password flow (submits reset request to admin)
-- Forced password change on first login (`requirePasswordChange` flag)
-- Role and permission badges displayed on account card
-- In-app feedback submission (bug reports and feature requests)
+Single sign-in for all roles; routes to appropriate portal after authentication. Includes forgot password flow, forced password change on first login, role and permission badges, and in-app feedback submission.
 
 #### Launch App — Project Tracker (`/launch`)
-- Create projects from the 102-task Biolis AU480 CLIA implementation template
-- Phase-based task board: Phase 0 through Phase 4 (Financials)
-- Draft / Published status toggle per project (unpublished projects hidden from clients)
-- Task management: owners, due dates, start dates, dependencies, notes, subtasks, file attachments
-- Subtask notifications: overdue and new assignment alerts
-- Client task assignment with configurable visibility (`showToClient`)
-- Bulk task editing and bulk operations
-- CSV import/export with automatic dependency re-linking
-- Project cloning and per-project access levels (read / write / admin)
-- HubSpot CRM sync: bi-directional deal/company stage updates
-- Go-live date management and project status (active, paused, completed)
-- Combined onboarding document view (task-attached files + admin uploads)
+Create projects from the 102-task Biolis AU480 CLIA implementation template. Phase-based task board (Phase 0 through Phase 4). Supports task management with owners, due dates, dependencies, subtasks, file attachments, CSV import/export, project cloning, HubSpot CRM sync, and go-live date management.
 
 #### Client Portal (`/portal/:slug`)
-- **Home**: Project summary, announcements feed, quick stats (inventory, tickets, checklist status)
-- **Milestones**: Phase-by-phase task tracking in list or timeline view; per-phase progress bars; task notes, file attachments, and subtask status
-- **Soft Pilot Checklist**: Multi-step form with digital signature capture (name, title, date); save-in-progress and final submission; embedded document support
-- **Inventory**: Weekly inventory submission with batch tracking; submission history; admin-managed custom inventory items
-- **Support**: Ticket submission by category; ticket history; email notifications on updates
-- **Documents**: Browse and search client-facing documents by category; service report attachments visible to client
-- **Validation Progress**: Multi-day validation tracking with segment cards (onsite/offsite); days-logged vs. expected progress
-- **Portal Admin** (requires `hasClientPortalAdminAccess`): Manage announcements, upload documents, configure portal branding (name, welcome message, primary color), manage client profiles
+- **Home**: Project summary, announcements, quick stats
+- **Milestones**: Phase-by-phase task tracking with progress bars
+- **Soft Pilot Checklist**: Multi-step form with digital signature capture
+- **Inventory**: Weekly submission with batch tracking and history
+- **Support**: Ticket submission and history with email notifications
+- **Documents**: Client-facing documents by category
+- **Validation Progress**: Multi-day validation tracking
+- **Portal Admin**: Manage announcements, documents, and portal branding
 
 #### Service Portal (`/service-portal`)
-- **Dashboard**: Assigned service visits, active validations, service report stats
-- **Service Reports**: Submit, edit, and track field service reports with photo upload, file attachments, and digital signature capture; filter and sort by status, date, service type, or client
-- **Validation Management**: Multi-day validation assignments with day-by-day segment logging (hours, phase type, notes); finalize with technician and customer signatures; PDF report generation
-- **Vendor Assignment**: Admin tool to assign service visits to vendors/technicians; create new vendors with client assignments
-- **PDF Generation**: Downloadable service and validation reports via PDFKit/PDFMake
+Field service report submission and management, multi-day validation assignments with day-by-day segment logging, vendor assignment tools, and PDF report generation.
 
 #### Admin Hub (`/admin`)
-- **User Management**: Create/edit/delete accounts; assign roles, permission flags, projects, and access levels; client assignment for vendors; email subscription toggle; bulk password reset (all/clients/vendors/users); export user list to Excel (XLSX)
-- **Inbox**: Review feedback submissions (bug reports, feature requests) and pending password reset requests
-- **Notifications & Automation**: Configure notification queue (enabled/disabled, check interval, daily send limit, max retries); manage automated reminder scenarios (overdue tasks, soft pilot reminders, client activity nudges, inventory submission reminders); view notification history; unsubscribe/resubscribe support
-- **Service Portal Settings**: Vendor and client configuration; manage service portal access
-- **Client Portal Settings**: Portal branding, welcome message, primary color
-- **Activity Log**: Audit trail of system actions (last 500 entries)
+Full system administration: user management, inbox (feedback and password reset requests), notification automation configuration, service and client portal settings, and activity log (last 500 entries).
 
 ### Best Practices
 
 **Security**
 - Change the default admin password immediately after first login
-- Always set the `JWT_SECRET` environment variable in production
 - Regularly review user access permissions and assigned projects
 - New users are prompted to change their password on first login
 
 **Project Management**
 - Use the 102-task template as the starting point for new implementations
 - Assign task owners by email for clear accountability
-- Keep task notes updated for accurate HubSpot sync
 - Use draft status while configuring a new project; publish when ready for client visibility
 
 **Client Portals**
-- Configure a unique `clientLinkSlug` for each client practice — note that changing the practice name regenerates the slug and breaks existing portal URLs
+- Configure a unique `clientLinkSlug` per client — changing the practice name regenerates the slug and breaks existing portal URLs
 - Upload client logos for a branded portal experience
-- Use the announcements feature to communicate important updates
 - Review inventory submissions weekly
-
-**Data Management**
-- Regularly sync projects to HubSpot to maintain CRM accuracy
-- Use CSV export for backup and external reporting
-- Archive completed projects by setting status to `completed`
 
 ---
 
 ## Administrator Reference
 
-### Default Admin Login
+### Initial Admin Login
 
 - **URL**: `/login`
-- **Email**: bianca@thrive365labs.com
-- **Password**: Thrive2025!
+- **Credentials**: Provided separately via secure channel by bianca@onboardhealth.live
 
-> **Important**: Change this password immediately after first login.
+> **Security Notice**: Admin credentials must never be stored in shared or version-controlled documents. Contact bianca@onboardhealth.live to receive or reset credentials.
 
 ### Key Admin Functions
 
-**User Management**
-- Create and manage user accounts with role-based permissions
-- Toggle individual portal access flags per user
-- Assign projects and per-project access levels (read / write / admin)
-- Process password reset requests from the Inbox
-- Bulk password reset for user groups
-- Export user list to Excel
+**User Management**: Create/edit/deactivate accounts, assign roles and permission flags, process password resets, export user lists to Excel.
 
-**Project Management**
-- Create projects from the 102-task Biolis AU480 CLIA template
-- Clone existing projects for similar implementations
-- Manage task templates and phase structure
-- Configure HubSpot stage mapping for pipeline sync
-- Control project draft/published status
+**Project Management**: Create from the 102-task template, clone existing projects, configure HubSpot stage mapping, manage draft/published status.
 
-**Client Portal Administration**
-- Configure portal branding (name, welcome message, primary color)
-- Manage announcements and client-facing documents
-- Monitor inventory submissions and support tickets
-- Manage client profiles and portal slugs
+**Client Portal Administration**: Configure branding, manage announcements and documents, monitor inventory and support tickets, manage client profiles and portal slugs.
 
-**Notification Automation**
-- Enable/disable the notification queue and configure send limits
-- Set automated reminders for overdue tasks, soft pilot submissions, client nudges, and inventory
-- Review notification delivery history
-- Manage client email subscription preferences
+**Notification Automation**: Enable/disable queue, configure send limits and reminder scenarios, review delivery history, manage subscription preferences.
 
-**System Settings**
-- Configure custom domain for client portal URLs
-- Manage HubSpot integration and pipeline stage mapping
-- View activity log and audit trail
-- Process feedback and bug reports from the Inbox
+**System Settings**: Custom domain configuration, HubSpot integration, activity log, feedback inbox.
+
+---
+
+## Backend Access — Security & Structural Needs
+
+> **Important**: Backend access is scoped exclusively to operational security and structural maintenance. Core database architecture, API logic, and infrastructure are proprietary and remain exclusively with the licensor. Do not attempt to access, modify, or replicate these components.
+
+### What Thrive 365 Labs Can Access
+
+| Access Type | Scope | How |
+|-------------|-------|-----|
+| **Replit Collaborator Access** | Frontend UI, branding files, config settings, deployment controls | Via Replit project invite |
+| **Environment Variable Names** | Key names for integration reference only | Replit Secrets panel (values not visible) |
+| **Deployment Controls** | Restart, redeploy, view logs | Replit dashboard |
+| **Admin Hub Activity Log** | Audit trail of system actions | `/admin` portal |
+
+### What Requires Developer Involvement
+
+All of the following require a request to **umebianca@gmail.com / bianca@thrive365labs.com**:
+
+- Changes to database structure or queries
+- API integration updates (HubSpot, Google Drive, Resend)
+- Environment variable value changes or new secrets
+- Infrastructure scaling or hosting changes
+- Security patches and dependency updates
+- Any changes to core backend logic
+
+---
+
+## Support & Maintenance
+
+**Primary Developer & Technical Support**
+Bianca G. C. Ume, MD, MBA, MS
+Luka is available as needed per Bianca communication
+
+**How to Request Support**
+1. Use the in-app feedback form (from the login hub) for non-urgent issues
+2. Email bianca@thrive365labs.com for urgent or structural requests
+3. Reference the Knowledge Hub (`/knowledge`) for role-specific documentation
+
+**Hosting**: Replit autoscale deployment (port 5000 internal, 80 external). Hosting costs billed to Thrive 365 Labs.
 
 ---
 
 ## Open Source Licenses
 
-This application uses the following open-source packages:
-
 | Package | License | Purpose |
 |---------|---------|---------|
 | express | MIT | Web application framework |
-| react | MIT | User interface library |
-| react-dom | MIT | React DOM rendering |
+| react / react-dom | MIT | User interface library |
 | tailwindcss | MIT | CSS utility framework |
 | bcryptjs | MIT | Password hashing |
 | jsonwebtoken | MIT | JWT authentication |
 | axios | MIT | HTTP client |
 | cors | MIT | Cross-origin resource sharing |
 | body-parser | MIT | Request body parsing |
-| multer | MIT | File upload handling (memory storage, 10MB limit) |
+| multer | MIT | File upload handling |
 | uuid | MIT | Unique identifier generation |
-| pdfkit | MIT | PDF generation |
-| pdfmake | MIT | PDF document creation |
+| pdfkit / pdfmake | MIT | PDF generation |
 | googleapis | Apache-2.0 | Google Drive API integration |
 | @hubspot/api-client | Apache-2.0 | HubSpot CRM integration |
 | form-data | MIT | Form data handling |
-
-### License Compliance Notes
-
-- **MIT License**: Permits commercial use, modification, and distribution with attribution
-- **Apache-2.0 License**: Permits commercial use with attribution and preservation of license notices
-
-All open-source components are used in compliance with their respective licenses.
-
----
-
-## Support & Maintenance
-
-For technical support or questions:
-- Use the in-app feedback form (available from the login hub)
-- Contact Diamond Element Consulting
-- Check the Knowledge Hub (`/knowledge`) for role-specific documentation
-
-**Hosting**: Application is hosted on Replit (autoscale deployment; port 5000 internal, 80 external). Billing managed by Thrive 365 Labs.
-
-**Maintenance & Support**: Application maintenance, updates, and technical support are provided by **Bianca G. C. Ume, MD, MBA, MS** until an internal developer is onboarded.
-
-For technical support or maintenance requests, contact Bianca G. C. Ume, MD, MBA, MS.
 
 ---
 
 ## License
 
-Proprietary — Thrive 365 Labs
+**Proprietary Software — Licensed to Thrive 365 Labs**
+
+This software is owned by Bianca G. C. Ume, MD, MBA, MS / OnboardHealth (onboardhealth.live). A perpetual, non-exclusive, non-transferable license has been granted to Thrive 365 Labs for internal operational use. All intellectual property rights remain with the licensor. Unauthorized redistribution, sublicensing, or replication is strictly prohibited.
+
+Licensing inquiries: umebianca@gmail.com
 
 ---
 
-*Developed by Diamond Element Consulting for Thrive 365 Labs*
-*Last Updated: March 2026*
+*Developed by Bianca Ume/OnboardHealth*
+*Licensed to Thrive 365 Labs | Last Updated: March 2026*
