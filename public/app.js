@@ -8,7 +8,7 @@ const STANDARD_PHASES = {
     stages: ['Tasks']
   },
   'Phase 2': {
-    name: 'Phase 2: Billing, CLIA & Hiring',
+    name: 'Phase 2: Financials, CLIA & Hiring',
     stages: ['Tasks']
   },
   'Phase 3': {
@@ -361,6 +361,16 @@ const api = {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ taskIds })
+    }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' })),
+
+  bulkEditTasks: (token, projectId, taskIds, updates) =>
+    fetch(`${API_URL}/api/projects/${projectId}/tasks/bulk-edit`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ taskIds, updates })
     }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' })),
 
   forgotPassword: (email) =>
@@ -1292,7 +1302,11 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
       if (user.role === 'admin' || isProjectAdmin) {
         updates.publishedStatus = editingProject.publishedStatus || 'draft';
       }
-      await api.updateProject(token, editingProject.id, updates);
+      const result = await api.updateProject(token, editingProject.id, updates);
+      if (result && result.error) {
+        alert(result.error);
+        return;
+      }
       setEditingProject(null);
       loadProjects();
     } catch (err) {
@@ -1445,7 +1459,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                   <h3 className="text-lg font-bold text-primary mb-3">Project Phases</h3>
                   <div className="space-y-2 text-gray-600 text-sm">
                     <div className="flex items-center gap-3"><div className="w-4 h-4 bg-blue-500 rounded"></div><span><strong>Phase 1:</strong> Contract & Initial Setup</span></div>
-                    <div className="flex items-center gap-3"><div className="w-4 h-4 bg-indigo-500 rounded"></div><span><strong>Phase 2:</strong> Billing, CLIA & Hiring</span></div>
+                    <div className="flex items-center gap-3"><div className="w-4 h-4 bg-indigo-500 rounded"></div><span><strong>Phase 2:</strong> Financials, CLIA & Hiring</span></div>
                     <div className="flex items-center gap-3"><div className="w-4 h-4 bg-cyan-500 rounded"></div><span><strong>Phase 3:</strong> Tech Infrastructure & LIS Integration</span></div>
                     <div className="flex items-center gap-3"><div className="w-4 h-4 bg-yellow-500 rounded"></div><span><strong>Phase 4:</strong> Inventory Forecasting & Procurement</span></div>
                     <div className="flex items-center gap-3"><div className="w-4 h-4 bg-green-500 rounded"></div><span><strong>Phase 5:</strong> Supply Orders & Logistics</span></div>
@@ -2256,26 +2270,6 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                     <StatusBadge status={project.status || 'active'} />
                   </div>
                 </div>
-                {(() => {
-                  const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
-                  const canManagePublish = user.role === 'admin' || isProjectAdmin;
-                  if (!canManagePublish) return null;
-                  return (
-                    <div className="flex items-center gap-2 mb-3">
-                      <PublishedStatusBadge publishedStatus={project.publishedStatus} />
-                      <button
-                        onClick={() => handleTogglePublishedStatus(project)}
-                        className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
-                          (project.publishedStatus || 'published') === 'draft'
-                            ? 'border-emerald-400 text-emerald-700 hover:bg-emerald-50'
-                            : 'border-amber-400 text-amber-700 hover:bg-amber-50'
-                        }`}
-                      >
-                        {(project.publishedStatus || 'published') === 'draft' ? 'Publish' : 'Unpublish'}
-                      </button>
-                    </div>
-                  );
-                })()}
                 <p className="text-gray-600 mb-3">{project.clientName}</p>
 
                 {/* Progress Bar */}
@@ -2476,7 +2470,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                         <option value="draft">Draft (hidden from team members)</option>
                         <option value="published">Published (visible to all assigned users)</option>
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Draft projects are only visible to admins and project managers.</p>
+                      <p className="text-xs text-gray-500 mt-1">Draft projects are only visible to the user who created the board.</p>
                     </div>
                   );
                 })()}
@@ -2607,7 +2601,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
 // ============== TIMELINE VIEW COMPONENT (Phase/Stage Grouped) ==============
 const phaseNames = {
   'Phase 1': 'Phase 1: Contract & Initial Setup',
-  'Phase 2': 'Phase 2: Billing, CLIA & Hiring',
+  'Phase 2': 'Phase 2: Financials, CLIA & Hiring',
   'Phase 3': 'Phase 3: Tech Infrastructure & LIS Integration',
   'Phase 4': 'Phase 4: Inventory Forecasting & Procurement',
   'Phase 5': 'Phase 5: Supply Orders & Logistics',
@@ -3082,7 +3076,7 @@ const SoftPilotChecklist = ({ token, project, tasks, teamMembers, onClose, onSub
   const isResubmission = !!project.softPilotChecklistSubmitted;
   
   useEffect(() => {
-    const softPilotOnly = tasks.filter(t => t.stage === 'Sprint 3: Soft-Pilot');
+    const softPilotOnly = tasks.filter(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot'));
     setLocalTasks(JSON.parse(JSON.stringify(softPilotOnly)));
   }, [tasks]);
 
@@ -3190,7 +3184,7 @@ const SoftPilotChecklist = ({ token, project, tasks, teamMembers, onClose, onSub
   <p style="color: #6b7280; margin-bottom: 20px;"><strong>Client:</strong> ${project.clientName}</p>
   <p style="color: #6b7280;"><strong>Date Generated:</strong> ${new Date().toLocaleDateString()}</p>
 
-  <h2>Sprint 3: Soft-Pilot Tasks</h2>
+  <h2>Virtual Soft Pilot Tasks</h2>
   <table>
     <thead>
       <tr>
@@ -3299,7 +3293,7 @@ const SoftPilotChecklist = ({ token, project, tasks, teamMembers, onClose, onSub
           </div>
 
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Sprint 3: Soft-Pilot Tasks ({softPilotTasks.length})</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Virtual Soft Pilot Tasks ({softPilotTasks.length})</h3>
             <div className="space-y-2">
               {softPilotTasks.map(task => (
                 <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50">
@@ -3453,6 +3447,8 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   const [teamMembers, setTeamMembers] = useState([]);
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [bulkMode, setBulkMode] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulkEditFields, setBulkEditFields] = useState({});
   const [newSubtask, setNewSubtask] = useState({ taskId: null, title: '', owner: '', dueDate: '', showToClient: undefined });
   const [editingSubtask, setEditingSubtask] = useState(null);
   const [expandedSubtasksId, setExpandedSubtasksId] = useState(null);
@@ -3470,9 +3466,28 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   const [showEmailHistory, setShowEmailHistory] = useState(false);
 
   const isAdmin = user.role === 'admin';
+  const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
   const userAccessLevel = isAdmin ? 'edit' : ((user.projectAccessLevels || {})[project.id] || 'edit');
   const canEdit = isAdmin || userAccessLevel === 'edit';
-  
+  const canManagePublish = isAdmin || isProjectAdmin;
+
+  const handleTogglePublishedStatus = async () => {
+    const newStatus = (project.publishedStatus || 'published') === 'draft' ? 'published' : 'draft';
+    const label = newStatus === 'published' ? 'publish' : 'unpublish';
+    if (!confirm(`Are you sure you want to ${label} "${project.name}"?`)) return;
+    try {
+      const result = await api.updateProject(token, project.id, { publishedStatus: newStatus });
+      if (result && result.error) {
+        alert(result.error);
+        return;
+      }
+      setProject({ ...project, publishedStatus: newStatus });
+    } catch (err) {
+      console.error('Failed to toggle published status:', err);
+      alert('Failed to update published status');
+    }
+  };
+
   // Refresh project data from server
   const refreshProject = async () => {
     try {
@@ -3728,6 +3743,37 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
     } catch (err) {
       console.error('Failed to bulk delete tasks:', err);
       alert('Failed to delete tasks');
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    if (selectedTasks.length === 0) return;
+    const updates = {};
+    if (bulkEditFields.ownerEnabled) updates.owner = bulkEditFields.owner || '';
+    if (bulkEditFields.secondaryOwnerEnabled) updates.secondaryOwner = bulkEditFields.secondaryOwner || '';
+    if (bulkEditFields.dueDateEnabled) updates.dueDate = bulkEditFields.dueDate || '';
+    if (bulkEditFields.phaseEnabled) updates.phase = bulkEditFields.phase || 'Phase 1';
+    if (bulkEditFields.showToClientEnabled) updates.showToClient = !!bulkEditFields.showToClient;
+    if (bulkEditFields.tagsEnabled) updates.tags = bulkEditFields.tags || [];
+    if (Object.keys(updates).length === 0) {
+      alert('Please select at least one field to update.');
+      return;
+    }
+    try {
+      const result = await api.bulkEditTasks(token, project.id, selectedTasks, updates);
+      if (result && result.error) {
+        alert(result.error);
+        return;
+      }
+      loadTasks();
+      setSelectedTasks([]);
+      setBulkMode(false);
+      setShowBulkEdit(false);
+      setBulkEditFields({});
+      alert(`Successfully updated ${result.updatedCount || selectedTasks.length} task(s).`);
+    } catch (err) {
+      console.error('Failed to bulk edit tasks:', err);
+      alert('Failed to bulk edit tasks');
     }
   };
 
@@ -4425,7 +4471,25 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
             taskId: task.id,
             taskTitle: task.taskTitle,
             phase: task.phase,
-            stage: task.stage
+            stage: task.stage,
+            entryType: 'note'
+          });
+        });
+      }
+      if (task.files && task.files.length > 0) {
+        task.files.forEach(file => {
+          allNotes.push({
+            id: file.id,
+            content: file.name,
+            author: file.uploadedBy || 'System',
+            createdAt: file.uploadedAt,
+            taskId: task.id,
+            taskTitle: task.taskTitle,
+            phase: task.phase,
+            stage: task.stage,
+            entryType: 'file',
+            fileUrl: file.url,
+            fileName: file.name
           });
         });
       }
@@ -4434,7 +4498,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   }, [tasks]);
   
   const tasksWithNotes = useMemo(() => {
-    return tasks.filter(t => t.notes && t.notes.length > 0).length;
+    return tasks.filter(t => (t.notes && t.notes.length > 0) || (t.files && t.files.length > 0)).length;
   }, [tasks]);
 
   const totalTasks = tasks.length;
@@ -4591,6 +4655,38 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 </svg>
                 Notes Log ({aggregatedNotes.length})
               </button>
+              
+              {tasks.some(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot')) && (
+                <>
+                  <div className="border-l border-gray-300 mx-2"></div>
+                  <button
+                    onClick={() => setShowSoftPilotChecklist(true)}
+                    className="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent text-white hover:opacity-90"
+                    title="View and complete the Soft-Pilot Checklist"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Soft-Pilot Checklist
+                  </button>
+                </>
+              )}
+              
+              {canManagePublish && (
+                <>
+                  <div className="border-l border-gray-300 mx-2"></div>
+                  <button
+                    onClick={handleTogglePublishedStatus}
+                    className={`px-3 py-1.5 rounded-md text-sm ${
+                      (project.publishedStatus || 'published') === 'draft'
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                        : 'bg-amber-500 text-white hover:bg-amber-600'
+                    }`}
+                  >
+                    {(project.publishedStatus || 'published') === 'draft' ? 'Publish' : 'Unpublish'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -4919,6 +5015,15 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                           Delete {selectedTasks.length}
                         </button>
                       </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">&nbsp;</label>
+                        <button
+                          onClick={() => { setBulkEditFields({}); setShowBulkEdit(true); }}
+                          className="px-4 py-2 bg-gradient-to-r from-primary to-accent text-white rounded-md hover:opacity-90 text-sm"
+                        >
+                          Edit {selectedTasks.length} Selected
+                        </button>
+                      </div>
                     </>
                   )}
                   {bulkMode && (
@@ -5190,69 +5295,42 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                     );
                   })()
                 )}
-                {Object.entries(groupedByPhase[phase] || {}).map(([stageName, stageTasks]) => (
-                  <div key={stageName} className={`bg-white rounded-lg shadow-sm overflow-hidden border-l-4 ${getPhaseColor(phase)}`}>
-                    {stageName !== 'Tasks' && (
-                    <div className="bg-gray-50 p-3 border-b flex justify-between items-center">
-                      <div>
-                        <h3 className="font-semibold text-gray-700">{stageName}</h3>
-                        <p className="text-xs text-gray-500">
-                          {stageTasks.filter(t => t.completed).length} of {stageTasks.length} complete
-                        </p>
-                      </div>
+                {(() => {
+                  const phaseTasks = Object.values(groupedByPhase[phase] || {}).flat().sort((a, b) => {
+                    const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+                    const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+                    if (aDate !== bDate) return aDate - bDate;
+                    return (a.stageOrder || a._originalIdx + 1) - (b.stageOrder || b._originalIdx + 1);
+                  });
+                  return (
+                  <div className={`bg-white rounded-lg shadow-sm overflow-hidden border-l-4 ${getPhaseColor(phase)}`}>
+                    {viewMode === 'internal' && (
+                    <div className="bg-gray-50 p-2 border-b flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                        {viewMode === 'internal' && bulkMode && stageTasks.length > 0 && (
-                          <>
-                            <button
-                              onClick={() => {
-                                const stageTaskIds = stageTasks.map(t => t.id);
-                                const allSelected = stageTaskIds.every(id => selectedTasks.includes(id));
-                                if (allSelected) {
-                                  setSelectedTasks(selectedTasks.filter(id => !stageTaskIds.includes(id)));
-                                } else {
-                                  setSelectedTasks([...new Set([...selectedTasks, ...stageTaskIds])]);
-                                }
-                              }}
-                              className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
-                            >
-                              {stageTasks.every(t => selectedTasks.includes(t.id)) ? 'Deselect Stage' : 'Select Stage'}
-                            </button>
-                          </>
-                        )}
-                        {viewMode === 'internal' && stageName === 'Sprint 3: Soft-Pilot' && (
-                          <button
-                            onClick={() => setShowSoftPilotChecklist(true)}
-                            className="px-3 py-1 bg-gradient-to-r from-primary to-accent text-white text-sm rounded-md hover:opacity-90"
-                          >
-                            View & Complete Checklist
-                          </button>
-                        )}
-                        {viewMode === 'internal' && canEdit && (
+                        {bulkMode && phaseTasks.length > 0 && (
                           <button
                             onClick={() => {
-                              setNewTask({
-                                ...newTask,
-                                phase: phase,
-                                stage: stageName
-                              });
-                              setShowAddTask(true);
+                              const phaseTaskIds = phaseTasks.map(t => t.id);
+                              const allSelected = phaseTaskIds.every(id => selectedTasks.includes(id));
+                              if (allSelected) {
+                                setSelectedTasks(selectedTasks.filter(id => !phaseTaskIds.includes(id)));
+                              } else {
+                                setSelectedTasks([...new Set([...selectedTasks, ...phaseTaskIds])]);
+                              }
                             }}
-                            className="text-primary hover:text-accent text-sm font-medium"
+                            className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
                           >
-                            + Add Task
+                            {phaseTasks.every(t => selectedTasks.includes(t.id)) ? 'Deselect All' : 'Select All'}
                           </button>
                         )}
                       </div>
-                    </div>
-                    )}
-                    {stageName === 'Tasks' && viewMode === 'internal' && canEdit && (
-                      <div className="bg-gray-50 p-2 border-b flex justify-end">
+                      {canEdit && (
                         <button
                           onClick={() => {
                             setNewTask({
                               ...newTask,
                               phase: phase,
-                              stage: stageName
+                              stage: 'Tasks'
                             });
                             setShowAddTask(true);
                           }}
@@ -5260,12 +5338,13 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                         >
                           + Add Task
                         </button>
-                      </div>
+                      )}
+                    </div>
                     )}
                     <div className="divide-y divide-gray-200">
-                      {stageTasks.length === 0 ? (
-                        <div className="p-4 text-gray-400 text-sm italic">No tasks in this stage</div>
-                      ) : stageTasks.map(task => (
+                      {phaseTasks.length === 0 ? (
+                        <div className="p-4 text-gray-400 text-sm italic">No tasks in this phase</div>
+                      ) : phaseTasks.map(task => (
                     <div key={task.id} id={`task-${task.id}`} className={`p-3 sm:p-4 overflow-hidden ${viewMode === 'internal' && isOverdue(task) ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'} ${selectedTasks.includes(task.id) ? 'bg-blue-50' : ''}`}>
                       <div className="flex items-start gap-2 sm:gap-4">
                         {viewMode === 'internal' && bulkMode && (
@@ -6044,7 +6123,8 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                   ))}
                     </div>
                   </div>
-                ))}
+                  );
+                })()}
                 </>
                 )}
               </div>
@@ -6076,7 +6156,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                       className="w-full px-3 py-2 border rounded-md"
                     >
                       <option value="Phase 1">Phase 1: Contract & Initial Setup</option>
-                      <option value="Phase 2">Phase 2: Billing, CLIA & Hiring</option>
+                      <option value="Phase 2">Phase 2: Financials, CLIA & Hiring</option>
                       <option value="Phase 3">Phase 3: Tech Infrastructure & LIS</option>
                       <option value="Phase 4">Phase 4: Inventory Forecasting</option>
                       <option value="Phase 5">Phase 5: Supply Orders & Logistics</option>
@@ -6195,6 +6275,96 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
           </div>
         )}
 
+        {showBulkEdit && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="bg-gradient-to-r from-primary to-accent text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
+                <h3 className="font-bold text-lg">Bulk Edit {selectedTasks.length} Task(s)</h3>
+                <button onClick={() => setShowBulkEdit(false)} className="text-white hover:text-gray-200 text-xl">&times;</button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.ownerEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, ownerEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+                    <select disabled={!bulkEditFields.ownerEnabled} value={bulkEditFields.owner || ''} onChange={(e) => setBulkEditFields({...bulkEditFields, owner: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50">
+                      <option value="">Unassigned</option>
+                      {allOwners.map(m => <option key={m.email} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.secondaryOwnerEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, secondaryOwnerEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Owner</label>
+                    <select disabled={!bulkEditFields.secondaryOwnerEnabled} value={bulkEditFields.secondaryOwner || ''} onChange={(e) => setBulkEditFields({...bulkEditFields, secondaryOwner: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50">
+                      <option value="">None</option>
+                      {allOwners.map(m => <option key={m.email} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.dueDateEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, dueDateEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <input type="date" disabled={!bulkEditFields.dueDateEnabled} value={bulkEditFields.dueDate || ''} onChange={(e) => setBulkEditFields({...bulkEditFields, dueDate: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50" />
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.phaseEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, phaseEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phase</label>
+                    <select disabled={!bulkEditFields.phaseEnabled} value={bulkEditFields.phase || 'Phase 1'} onChange={(e) => setBulkEditFields({...bulkEditFields, phase: e.target.value})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50">
+                      {PHASE_ORDER.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.showToClientEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, showToClientEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Visibility</label>
+                    <div className={`${!bulkEditFields.showToClientEnabled ? 'opacity-50' : ''}`}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" disabled={!bulkEditFields.showToClientEnabled} checked={!!bulkEditFields.showToClient} onChange={(e) => setBulkEditFields({...bulkEditFields, showToClient: e.target.checked})} />
+                        <span className="text-sm text-gray-700">Show to client</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={!!bulkEditFields.tagsEnabled} onChange={(e) => setBulkEditFields({...bulkEditFields, tagsEnabled: e.target.checked})} className="mt-2" />
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                    <div className={`${!bulkEditFields.tagsEnabled ? 'opacity-50' : ''}`}>
+                      <input type="text" disabled={!bulkEditFields.tagsEnabled} placeholder="Enter tags separated by commas" value={(bulkEditFields.tags || []).join(', ')} onChange={(e) => setBulkEditFields({...bulkEditFields, tags: e.target.value.split(',').map(t => t.trim()).filter(t => t)})} className="w-full px-3 py-2 border rounded-md text-sm disabled:opacity-50" />
+                      {getUniqueTags().length > 0 && bulkEditFields.tagsEnabled && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {getUniqueTags().map(tag => (
+                            <button key={tag} type="button" onClick={() => {
+                              const current = bulkEditFields.tags || [];
+                              if (current.includes(tag)) {
+                                setBulkEditFields({...bulkEditFields, tags: current.filter(t => t !== tag)});
+                              } else {
+                                setBulkEditFields({...bulkEditFields, tags: [...current, tag]});
+                              }
+                            }} className={`text-xs px-2 py-1 rounded ${(bulkEditFields.tags || []).includes(tag) ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}>
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t flex justify-end gap-3">
+                <button onClick={() => setShowBulkEdit(false)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">Cancel</button>
+                <button onClick={handleBulkEdit} className="px-4 py-2 bg-gradient-to-r from-primary to-accent text-white rounded-md hover:opacity-90 text-sm">Apply Changes</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showSoftPilotChecklist && (
           <SoftPilotChecklist
             token={token}
@@ -6246,10 +6416,10 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
               
               <div className="px-4 py-3 bg-amber-50 border-b border-amber-100">
                 <p className="text-sm text-amber-800">
-                  Comprehensive log of all notes added to tasks in chronological order.
+                  Comprehensive log of all notes and file uploads in chronological order.
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
-                  {aggregatedNotes.length} total notes across {tasksWithNotes} tasks
+                  {aggregatedNotes.length} total entries across {tasksWithNotes} tasks
                 </p>
               </div>
               
@@ -6265,16 +6435,29 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 ) : (
                   <div className="space-y-4">
                     {aggregatedNotes.map((note, idx) => (
-                      <div key={note.id || idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-amber-300 transition-colors">
+                      <div key={`${note.entryType}-${note.id || idx}`} className={`rounded-lg p-4 border transition-colors ${note.entryType === 'file' ? 'bg-blue-50 border-blue-200 hover:border-blue-400' : 'bg-gray-50 border-gray-200 hover:border-amber-300'}`}>
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-amber-700 truncate">{note.phase} • {note.stage}</p>
+                            <p className={`text-xs font-medium truncate ${note.entryType === 'file' ? 'text-blue-700' : 'text-amber-700'}`}>
+                              {note.phase} • {note.entryType === 'file' ? 'File Upload' : note.stage}
+                            </p>
                             <p className="text-sm font-semibold text-gray-800 truncate" title={note.taskTitle}>{note.taskTitle}</p>
                           </div>
                         </div>
-                        <div className="bg-white rounded p-3 border border-gray-100 mb-2">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                        </div>
+                        {note.entryType === 'file' ? (
+                          <div className="bg-white rounded p-3 border border-blue-100 mb-2 flex items-center gap-2">
+                            <span className="text-base flex-shrink-0">📎</span>
+                            {note.fileUrl ? (
+                              <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline truncate">{note.fileName}</a>
+                            ) : (
+                              <span className="text-sm text-gray-700 truncate">{note.fileName}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded p-3 border border-gray-100 mb-2">
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <span className="font-medium">{note.author}</span>
                           <span>{new Date(note.createdAt).toLocaleString()}</span>
@@ -6439,7 +6622,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 <button
                   onClick={async () => {
                     try {
-                      await api.updateProject(token, project.id, {
+                      const result = await api.updateProject(token, project.id, {
                         name: project.name,
                         clientName: project.clientName,
                         projectManager: project.projectManager,
@@ -6447,6 +6630,10 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                         status: project.status,
                         goLiveDate: project.goLiveDate || ''
                       });
+                      if (result && result.error) {
+                        alert(result.error);
+                        return;
+                      }
                       await refreshProject();
                       setShowEditProject(false);
                       alert('Project updated successfully!');
@@ -6488,7 +6675,6 @@ const TemplateManagement = ({ token, user, onBack, onLogout }) => {
     'Launch Data & Systems Prep',
     'Sprint 1: Core System Setups',
     'Sprint 2: Lab & QUA Pilot Prep',
-    'Sprint 3: Soft-Pilot',
     'Training/Validation',
     'Go-Live',
     'KPIs',
@@ -8247,6 +8433,10 @@ const App = () => {
     if (match) {
       setPendingInternalSlug(match[1]);
     }
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#task-')) {
+      setScrollToTaskId(hash.replace('#task-', ''));
+    }
   }, []);
 
   useEffect(() => {
@@ -8288,7 +8478,7 @@ const App = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('unified_token');
     localStorage.removeItem('unified_user');
-    window.location.href = '/';
+    window.location.href = '/launch/login';
   };
 
   const handleSelectProject = (project, taskId = null) => {

@@ -4,6 +4,138 @@
 
 ---
 
+### Version 3.22.5 - March 3, 2026
+
+#### Changes
+- Make completed service reports visible in the client portal
+
+
+### Version 3.22.4 - March 3, 2026
+
+#### Changes
+- Remove requirement for soft-pilot checklist before project completion
+
+
+### Version 3.22.3 - March 3, 2026
+
+#### Changes
+- Restrict draft project visibility to only the creator
+
+
+### Version 3.22.2 - March 3, 2026
+
+#### Changes
+- Inform users when project completion fails due to unmet requirements
+
+
+### Version 3.22.1 - March 3, 2026
+
+#### Improvements
+- Improve draft project visibility for creators and authorized users
+
+
+### Version 3.22.0 - March 3, 2026
+
+#### New Features
+- Improve soft pilot checklist display and add portal notifications
+
+
+### Version 3.21.1 - March 3, 2026
+
+#### Bug Fixes
+- Fix invisible soft pilot button by correcting color gradient
+
+#### Changes
+- Hide unpublished and completed projects from client portal view
+
+
+### Version 3.21.0 - March 3, 2026
+
+#### New Features
+- Add file upload activity to project notes log
+- Add overdue and assignment notifications for subtasks
+
+#### Changes
+- Redirect users to the correct login page after logging out of the launch segment
+
+
+### Version 3.20.3 - March 3, 2026
+
+#### Improvements
+- Update project phase names to use "Financials" instead of "Billing"
+
+#### Changes
+- Transitioned from Plan to Build mode
+- Combine onboarding documents from tasks and admin uploads
+
+
+### Version 3.20.2 - March 3, 2026
+
+#### Improvements
+- Improve client portal and task management features
+
+
+### Version 3.20.1 - March 3, 2026
+
+#### Improvements
+- Improve project completion validation for soft pilot tasks
+
+
+### Version 3.20.0 - March 3, 2026
+
+#### New Features
+- Add bulk editing for tasks and make soft pilot checklist client-facing
+
+
+### Version 3.19.5 - March 3, 2026
+
+#### Improvements
+- Improve email sending by using a batch API
+
+
+### Version 3.19.4 - March 3, 2026
+
+#### Changes
+- Transitioned from Plan to Build mode
+- Send ticket category and submitter to correct HubSpot fields
+
+
+### Version 3.19.3 - March 3, 2026
+
+#### Improvements
+- Improve HubSpot ticket integration by adding configurable pipelines and enhancing error handling
+
+
+### Version 3.19.2 - March 3, 2026
+
+#### Changes
+- Move the publish/unpublish button to the project board header
+
+
+### Version 3.19.1 - March 2, 2026
+
+#### Changes
+- Move publish status tag to bottom right of project cards
+
+
+### Version 3.19.0 - March 2, 2026
+
+#### New Features
+- Add draft/published status to project launch boards
+
+#### Bug Fixes
+- Fix invisible Process Queue button in Notification Center
+- Fix email logo and View in App button using dynamic appUrl
+- Fix error that prevents the service portal from loading
+- Fix blank connections area by re-establishing GitHub link
+- Fix email logo rendering, preview button, and production URL in CTA links
+
+#### Changes
+- Remove "View in App" placeholder button from email template previews
+- Use getAppBaseUrl() for loginUrl and appUrl in email template previews
+- Make client task owner display retroactive for pre-existing assignments
+
+
 ### Version 3.18.1 - March 2, 2026
 
 #### Bug Fixes

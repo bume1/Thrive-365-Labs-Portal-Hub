@@ -13,7 +13,7 @@ const googledrive = require('./googledrive');
 const pdfGenerator = require('./pdf-generator');
 const changelogGenerator = require('./changelog-generator');
 const config = require('./config');
-const { sendEmail, sendBulkEmail } = require('./email');
+const { sendEmail, sendBulkEmail, sendBatchEmails } = require('./email');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -244,14 +244,29 @@ const logActivity = async (userId, userName, action, entityType, entityId, detai
 const queueNotification = async (type, recipientUserId, recipientEmail, recipientName, templateData, options = {}) => {
   try {
     const queue = (await db.get('pending_notifications')) || [];
-    // Dedup: skip if identical pending notification exists
+    // Dedup: skip if identical pending or held notification exists
     const isDuplicate = queue.some(n =>
       n.type === type &&
       n.recipientEmail === recipientEmail &&
       n.relatedEntityId === (options.relatedEntityId || null) &&
-      n.status === 'pending'
+      (n.status === 'pending' || n.status === 'held')
     );
     if (isDuplicate) return null;
+
+    // Dedup: skip if the same notification was sent within the cooldown window.
+    // This prevents repeat-send storms after the pending queue drains and the
+    // scanner re-queues the same trigger (e.g. a task that is still overdue).
+    const cooldownHours = (config.NOTIFICATION_COOLDOWN_HOURS && config.NOTIFICATION_COOLDOWN_HOURS[type]) ?? 20;
+    const cooldownCutoff = new Date(Date.now() - cooldownHours * 3600 * 1000).toISOString();
+    const log = (await db.get('notification_log')) || [];
+    const recentlySent = log.some(n =>
+      n.type === type &&
+      n.recipientEmail === recipientEmail &&
+      n.relatedEntityId === (options.relatedEntityId || null) &&
+      n.status === 'sent' &&
+      n.sentAt && n.sentAt >= cooldownCutoff
+    );
+    if (recentlySent) return null;
 
     const notification = {
       id: uuidv4(),
@@ -261,11 +276,12 @@ const queueNotification = async (type, recipientUserId, recipientEmail, recipien
       recipientName,
       channel: 'email',
       triggerDate: options.triggerDate || new Date().toISOString(),
-      status: 'pending',
+      status: options.status || 'pending',
       retryCount: 0,
       maxRetries: config.NOTIFICATION_MAX_RETRIES,
       relatedEntityId: options.relatedEntityId || null,
       relatedEntityType: options.relatedEntityType || null,
+      relatedProjectId: options.relatedProjectId || null,
       templateData: {
         subject: templateData.subject,
         body: templateData.body,
@@ -314,30 +330,40 @@ const processNotificationQueue = async () => {
     let sentCount = 0;
     let failCount = 0;
 
+    const emailPayloads = [];
+    const queueIndices = [];
     for (const notification of toProcess) {
       const idx = queue.findIndex(n => n.id === notification.id);
       if (idx === -1) continue;
+      emailPayloads.push({
+        to: notification.recipientEmail,
+        subject: notification.templateData.subject,
+        text: notification.templateData.body,
+        html: notification.templateData.htmlBody
+      });
+      queueIndices.push(idx);
+    }
 
-      const result = await sendEmail(
-        notification.recipientEmail,
-        notification.templateData.subject,
-        notification.templateData.body,
-        { htmlBody: notification.templateData.htmlBody }
-      );
+    if (emailPayloads.length > 0) {
+      const batchResult = await sendBatchEmails(emailPayloads);
 
-      if (result.success) {
-        queue[idx].status = 'sent';
-        queue[idx].sentAt = new Date().toISOString();
-        sentCount++;
-      } else {
-        queue[idx].retryCount = (queue[idx].retryCount || 0) + 1;
-        queue[idx].failedAt = new Date().toISOString();
-        queue[idx].failureReason = result.error;
-        if (queue[idx].retryCount >= queue[idx].maxRetries) {
-          queue[idx].status = 'failed';
+      batchResult.results.forEach((result, i) => {
+        const idx = queueIndices[i];
+        if (idx === undefined) return;
+        if (result.success) {
+          queue[idx].status = 'sent';
+          queue[idx].sentAt = new Date().toISOString();
+          sentCount++;
+        } else {
+          queue[idx].retryCount = (queue[idx].retryCount || 0) + 1;
+          queue[idx].failedAt = new Date().toISOString();
+          queue[idx].failureReason = result.error;
+          if (queue[idx].retryCount >= queue[idx].maxRetries) {
+            queue[idx].status = 'failed';
+          }
+          failCount++;
         }
-        failCount++;
-      }
+      });
     }
 
     // Move sent/failed/cancelled notifications to log archive
@@ -360,6 +386,46 @@ const processNotificationQueue = async () => {
   }
 };
 
+// Cancel all pending task/project notifications for a project when it transitions
+// to 'paused' or 'completed'. Service report notifications are intentionally excluded —
+// those are standalone documents that remain relevant regardless of project status.
+const cancelProjectNotifications = async (projectId, taskIds) => {
+  try {
+    const queue = (await db.get('pending_notifications')) || [];
+    const taskIdSet = new Set(taskIds.map(String));
+
+    const toCancel = [];
+    const remaining = [];
+    for (const n of queue) {
+      const isProjectNotification =
+        n.relatedEntityType === 'project' && n.relatedEntityId === projectId;
+      const isTaskNotification =
+        n.relatedEntityType === 'task' && taskIdSet.has(String(n.relatedEntityId));
+
+      if (isProjectNotification || isTaskNotification) {
+        toCancel.push({ ...n, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelReason: 'project_status_change' });
+      } else {
+        remaining.push(n);
+      }
+    }
+
+    if (toCancel.length === 0) return;
+
+    await db.set('pending_notifications', remaining);
+
+    const log = (await db.get('notification_log')) || [];
+    log.unshift(...toCancel);
+    if (log.length > config.NOTIFICATION_LOG_MAX_ENTRIES) {
+      log.length = config.NOTIFICATION_LOG_MAX_ENTRIES;
+    }
+    await db.set('notification_log', log);
+
+    console.log(`[NOTIFICATIONS] Cancelled ${toCancel.length} pending notification(s) for project ${projectId}`);
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Error cancelling project notifications:', err);
+  }
+};
+
 // ============================================================
 // EMAIL TEMPLATE SYSTEM — Dynamic, admin-editable templates
 // ============================================================
@@ -368,7 +434,7 @@ const processNotificationQueue = async () => {
 const BASE_HTML_EMAIL_WRAPPER = `
 <div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -382,7 +448,7 @@ const BASE_HTML_EMAIL_WRAPPER = `
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
 const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -416,7 +482,7 @@ function renderTemplate(templateStr, variables) {
 }
 
 // Build HTML email body: use custom htmlBody if provided, otherwise wrap plain body in base layout
-function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl) {
+function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl, baseUrl) {
   if (htmlBody) return htmlBody;
   const ctaBlock = (ctaUrl && ctaLabel)
     ? `<p style="margin-top: 20px;"><a href="${ctaUrl}" style="display: inline-block; background: #045E9F; color: #ffffff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px;">${ctaLabel}</a></p>`
@@ -424,7 +490,7 @@ function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl) {
   const unsubscribeBlock = unsubscribeUrl
     ? `<p style="color: #9ca3af; font-size: 11px; margin: 6px 0 0;"><a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from these emails</a></p>`
     : '';
-  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock });
+  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock, appUrl: baseUrl || 'https://thrive365labs.live' });
 }
 
 // ============================================================
@@ -461,7 +527,9 @@ const VARIABLE_POOLS = {
       { key: 'timeframe', label: 'Timeframe', example: 'in 3 days' },
       { key: 'daysOverdue', label: 'Days Overdue', example: '5' },
       { key: 'ownerName', label: 'Task Owner', example: 'Jane Doe' },
-      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' }
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' },
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' }
     ]
   },
   project: {
@@ -525,7 +593,12 @@ const TEMPLATE_POOL_MAPPING = {
   milestone_reached:        ['project', 'recipient', 'system'],
   golive_reminder:          ['project', 'recipient', 'system'],
   announcement:             ['announcement', 'recipient', 'system'],
-  welcome_email:            ['account', 'recipient', 'system']
+  welcome_email:            ['account', 'recipient', 'system'],
+  task_attachment:           ['task', 'project', 'recipient', 'system'],
+  subtask_deadline:          ['task', 'project', 'recipient', 'system'],
+  subtask_overdue:           ['task', 'project', 'recipient', 'system'],
+  subtask_overdue_escalation:['task', 'project', 'recipient', 'system'],
+  task_assignment:           ['task', 'project', 'recipient', 'system']
 };
 
 // Compute the merged variables array for a template from its pools
@@ -610,7 +683,29 @@ function resolveTaskVars(task, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}?task=${task.id}`
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
+      : appBaseUrl
+  };
+}
+
+function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
+  const dueDate = subtask.dueDate ? new Date(subtask.dueDate) : null;
+  const now = new Date();
+  const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
+  const owner = subtask.owner || '';
+  return {
+    taskTitle: subtask.title || '',
+    subtaskTitle: subtask.title || '',
+    parentTaskTitle: parentTask.taskTitle || '',
+    phase: parentTask.phase || '',
+    dueDate: dueDate ? dueDate.toLocaleDateString() : '',
+    timeframe: daysUntilDue !== null
+      ? (daysUntilDue === 0 ? 'today' : daysUntilDue === 1 ? 'tomorrow' : daysUntilDue > 0 ? `in ${daysUntilDue} days` : `${Math.abs(daysUntilDue)} days ago`)
+      : '',
+    daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
+    ownerName: owner,
+    taskLink: project && project.clientLinkSlug
+      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`
       : appBaseUrl
   };
 }
@@ -654,6 +749,69 @@ function buildTemplateVars(pools, recipientUser, appBaseUrl) {
 }
 
 // Default email templates — seeded on first access, admin can edit via UI
+async function sendAssignmentNotification(ownerEmail, task, subtask, project, triggeringUserId) {
+  try {
+    if (!ownerEmail) return;
+    const allUsers = await getUsers();
+    const ownerUser = allUsers.find(u => u.email === ownerEmail);
+    if (!ownerUser || ownerUser.emailUnsubscribed) return;
+    if (ownerUser.id === triggeringUserId) return;
+
+    const isHeld = project && project.publishedStatus === 'draft';
+
+    const appBaseUrl = await getAppBaseUrl();
+    const templates = await getEmailTemplates();
+    const template = getTemplateById(templates, 'task_assignment');
+
+    const isSubtask = !!subtask;
+    const taskTitle = isSubtask ? (subtask.title || '') : (task.taskTitle || '');
+    const dueDate = isSubtask ? subtask.dueDate : task.dueDate;
+    const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
+    const taskLink = project && project.clientLinkSlug
+      ? (ownerUser.role === 'client' && ownerUser.slug
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
+      : appBaseUrl;
+
+    const taskVars = {
+      taskTitle,
+      subtaskTitle: isSubtask ? (subtask.title || '') : '',
+      parentTaskTitle: isSubtask ? (task.taskTitle || '') : '',
+      phase: task.phase || '',
+      dueDate: dueDateFormatted,
+      taskLink,
+      ownerName: ownerEmail,
+      timeframe: '',
+      daysOverdue: '0'
+    };
+    const projVars = {
+      projectName: project.name || project.clientName || '',
+      projectLink: project.clientLinkSlug ? `${appBaseUrl}/launch/${project.clientLinkSlug}` : appBaseUrl
+    };
+
+    const allVars = buildTemplateVars({ task: taskVars, project: projVars }, ownerUser, appBaseUrl);
+
+    const subject = renderTemplate(template.subject, allVars);
+    const body = renderTemplate(template.body, allVars);
+    const renderedHtml = template.htmlBody
+      ? renderTemplate(template.htmlBody, allVars)
+      : null;
+    const htmlBody = buildHtmlEmail(body, renderedHtml, taskLink, 'View Task', null, appBaseUrl);
+    const entityId = isSubtask ? `${task.id}-${subtask.id}` : String(task.id);
+
+    await queueNotification('task_assignment', ownerUser.id, ownerUser.email, ownerUser.name || ownerUser.email, {
+      subject, body, htmlBody, ctaUrl: taskLink, ctaLabel: 'View Task'
+    }, {
+      relatedEntityId: entityId,
+      relatedEntityType: isSubtask ? 'subtask' : 'task',
+      createdBy: triggeringUserId || 'system',
+      ...(isHeld ? { status: 'held', relatedProjectId: project.id } : {})
+    });
+  } catch (err) {
+    console.error('Failed to send assignment notification:', err);
+  }
+}
+
 const DEFAULT_EMAIL_TEMPLATES = [
   {
     id: 'service_report_signature',
@@ -782,7 +940,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
     htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
   <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
+    <img src="{{appUrl}}/thrive365-logo.webp" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
@@ -812,6 +970,88 @@ const DEFAULT_EMAIL_TEMPLATES = [
     subject: 'Welcome to Thrive 365 Labs — Your Account is Ready',
     body: 'Welcome, {{recipientName}}!\n\nYour account has been created. Use the details below to log in for the first time. You will be prompted to set a new password after your first login.\n\nUsername / Email: {{recipientEmail}}\nTemporary Password: {{temporaryPassword}}\n\nLog in here: {{loginUrl}}\n\nThrive 365 Labs',
     htmlBody: null,
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'task_attachment',
+    name: 'Task Attachment — New Document',
+    category: 'automated',
+    subject: 'New Document Added: {{taskName}}',
+    body: 'A new file "{{fileName}}" has been added to the task "{{taskName}}" in your project "{{projectName}}".\n\nView it in your portal:\n{{portalLink}}\n\nThrive 365 Labs',
+    htmlBody: null,
+    variables: [
+      { key: 'taskName', label: 'Task Name', example: 'Install AU480 Analyzer' },
+      { key: 'fileName', label: 'File Name', example: 'setup-guide.pdf' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'portalLink', label: 'Portal Link', example: 'https://thrive365labs.live/portal/valley-medical#task-42' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_deadline',
+    name: 'Subtask Deadline Warning',
+    category: 'automated',
+    subject: 'Subtask due {{timeframe}}: {{subtaskTitle}} — {{projectName}}',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" in {{phase}} is due {{dueDate}}. Project: {{projectName}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/15/2026' },
+      { key: 'timeframe', label: 'Timeframe', example: 'in 3 days' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_overdue',
+    name: 'Subtask Overdue — Owner',
+    category: 'automated',
+    subject: 'OVERDUE ({{daysOverdue}}d): {{subtaskTitle}} — {{projectName}}',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" in {{phase}} was due {{dueDate}} and is now {{daysOverdue}} day(s) overdue. Project: {{projectName}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/01/2026' },
+      { key: 'daysOverdue', label: 'Days Overdue', example: '5' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'subtask_overdue_escalation',
+    name: 'Subtask Overdue — Admin Escalation',
+    category: 'automated',
+    subject: 'ESCALATION: Subtask {{daysOverdue}}d overdue — {{subtaskTitle}} ({{projectName}})',
+    body: 'The subtask "{{subtaskTitle}}" under "{{parentTaskTitle}}" assigned to {{ownerName}} in project "{{projectName}}" is {{daysOverdue}} days overdue. Due date: {{dueDate}}.',
+    htmlBody: null,
+    variables: [
+      { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
+      { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'ownerName', label: 'Owner Name', example: 'Jane Doe' },
+      { key: 'dueDate', label: 'Due Date', example: '03/01/2026' },
+      { key: 'daysOverdue', label: 'Days Overdue', example: '10' }
+    ],
+    isDefault: true, updatedAt: null, updatedBy: null
+  },
+  {
+    id: 'task_assignment',
+    name: 'Task Assignment — New Assignment',
+    category: 'automated',
+    subject: 'New Task Assigned: {{taskTitle}} — {{projectName}}',
+    body: 'You have been assigned to "{{taskTitle}}" in project "{{projectName}}".\n\nPhase: {{phase}}\nDue Date: {{dueDate}}\n\nView it here: {{taskLink}}\n\nThrive 365 Labs',
+    htmlBody: null,
+    variables: [
+      { key: 'taskTitle', label: 'Task Title', example: 'Install AU480 Analyzer' },
+      { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
+      { key: 'phase', label: 'Phase', example: 'Phase 2' },
+      { key: 'dueDate', label: 'Due Date', example: '03/15/2026' },
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' }
+    ],
     isDefault: true, updatedAt: null, updatedBy: null
   }
 ];
@@ -916,8 +1156,7 @@ const scanAndQueueNotifications = async () => {
       const renderedHtml = buildHtmlEmail(
         renderedBody,
         t.htmlBody ? renderTemplate(t.htmlBody, allVars) : null,
-        ctaUrl, ctaLabel,
-        unsubscribeUrl
+        ctaUrl, ctaLabel, unsubscribeUrl, appBaseUrl
       );
       await queueNotification(
         templateId,
@@ -1001,6 +1240,38 @@ const scanAndQueueNotifications = async () => {
               for (const admin of admins) {
                 const escVars = buildTemplateVars({ task: { ...taskVars, ownerName: owner.name }, project: projVars }, admin, appBaseUrl);
                 await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, task.id?.toString(), 'task');
+              }
+            }
+          }
+
+          for (const subtask of (task.subtasks || [])) {
+            if (subtask.completed || subtask.notApplicable || !subtask.dueDate || !subtask.owner) continue;
+            const stDueDate = new Date(subtask.dueDate);
+            const stDaysUntilDue = Math.floor((stDueDate - now) / (1000 * 60 * 60 * 24));
+
+            const stOwner = users.find(u => u.email === subtask.owner);
+            if (!stOwner || stOwner.emailUnsubscribed) continue;
+
+            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl);
+            const stCtaUrl = stVars.taskLink;
+            const stEntityId = `${task.id}-${subtask.id}`;
+
+            if (stDaysUntilDue >= 0 && daysBefore.includes(stDaysUntilDue)) {
+              const allVars = buildTemplateVars({ task: stVars, project: projVars }, stOwner, appBaseUrl);
+              await renderAndQueue('subtask_deadline', stOwner, allVars, 'View Task', stCtaUrl, stEntityId, 'subtask');
+            }
+
+            if (stDaysUntilDue < 0) {
+              const allVars = buildTemplateVars({ task: stVars, project: projVars }, stOwner, appBaseUrl);
+              await renderAndQueue('subtask_overdue', stOwner, allVars, 'View Task', stCtaUrl, stEntityId, 'subtask');
+
+              const stDaysOverdue = Math.abs(stDaysUntilDue);
+              if (stDaysOverdue >= escalationDays) {
+                const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
+                for (const admin of admins) {
+                  const escVars = buildTemplateVars({ task: { ...stVars, ownerName: stOwner.name }, project: projVars }, admin, appBaseUrl);
+                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, stEntityId, 'subtask');
+                }
               }
             }
           }
@@ -1092,7 +1363,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const user of [...projectClients, ...teamMembers]) {
               const allVars = buildTemplateVars({ project: projVars }, user, appBaseUrl);
-              await renderAndQueue('milestone_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('golive_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
             }
           }
         }
@@ -2323,6 +2594,24 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
+// Public endpoint: look up a password reset link token (no auth required)
+app.get('/api/auth/password-reset-link/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const links = (await db.get('password_reset_links')) || [];
+    const link = links.find(l => l.token === token);
+    if (!link) return res.status(404).json({ error: 'Invalid or expired reset link.' });
+    if (new Date(link.expiresAt) < new Date()) return res.status(410).json({ error: 'This reset link has expired. Please contact your administrator.' });
+    const users = await getUsers();
+    const user = users.find(u => u.id === link.userId);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    res.json({ name: user.name, email: user.email, tempPassword: link.tempPassword });
+  } catch (error) {
+    console.error('Password reset link lookup error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ============== EMAIL UNSUBSCRIBE / RESUBSCRIBE (public, token-based) ==============
 
 function renderUnsubscribePageHtml(message, isSuccess) {
@@ -2345,7 +2634,7 @@ function renderUnsubscribePageHtml(message, isSuccess) {
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="https://thrive365labs.live/thrive365-logo.webp" alt="Thrive 365 Labs" />
+    <img class="logo" src="/thrive365-logo.webp" alt="Thrive 365 Labs" />
     <div class="icon">${isSuccess ? '✅' : '❌'}</div>
     <h2>Email Preferences</h2>
     <p>${message}</p>
@@ -2607,10 +2896,12 @@ app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) 
     if (name) users[idx].name = name;
     if (email) users[idx].email = email;
     if (role) users[idx].role = role;
+    let passwordWasReset = false;
     if (password) {
       users[idx].password = await bcrypt.hash(password, config.BCRYPT_SALT_ROUNDS);
       users[idx].requirePasswordChange = true;
       users[idx].lastPasswordReset = new Date().toISOString();
+      passwordWasReset = true;
     }
     if (assignedProjects !== undefined) users[idx].assignedProjects = assignedProjects;
     if (projectAccessLevels !== undefined) users[idx].projectAccessLevels = projectAccessLevels;
@@ -2662,6 +2953,18 @@ app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) 
 
     await db.set('users', users);
     invalidateUsersCache();
+
+    // If password was reset by admin, email the user a secure reset link
+    if (passwordWasReset) {
+      (async () => {
+        try {
+          const token = await createPasswordResetLink(users[idx], password);
+          await sendPasswordResetEmail(users[idx], token);
+        } catch (err) {
+          console.error('Password reset email error (user edit):', err);
+        }
+      })();
+    }
 
     // Cascade name changes to all related data stores (non-blocking)
     const newName = users[idx].name;
@@ -2913,6 +3216,13 @@ app.post('/api/projects/:projectId/tasks/:taskId/subtasks', authenticateToken, a
     if (!tasks[idx].subtasks) tasks[idx].subtasks = [];
     tasks[idx].subtasks.push(subtask);
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (subtask.owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(subtask.owner, tasks[idx], subtask, project, req.user.id);
+      }
+    }
     
     res.json(subtask);
   } catch (error) {
@@ -2941,6 +3251,7 @@ app.put('/api/projects/:projectId/tasks/:taskId/subtasks/:subtaskId', authentica
     const subtaskIdx = tasks[taskIdx].subtasks.findIndex(s => String(s.id) === String(subtaskId));
     if (subtaskIdx === -1) return res.status(404).json({ error: 'Subtask not found' });
     
+    const previousSubtaskOwner = tasks[taskIdx].subtasks[subtaskIdx].owner;
     if (title !== undefined) tasks[taskIdx].subtasks[subtaskIdx].title = title;
     if (owner !== undefined) tasks[taskIdx].subtasks[subtaskIdx].owner = owner;
     if (dueDate !== undefined) tasks[taskIdx].subtasks[subtaskIdx].dueDate = dueDate;
@@ -2962,6 +3273,14 @@ app.put('/api/projects/:projectId/tasks/:taskId/subtasks/:subtaskId', authentica
     }
     
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (owner !== undefined && owner !== previousSubtaskOwner && owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(owner, tasks[taskIdx], tasks[taskIdx].subtasks[subtaskIdx], project, req.user.id);
+      }
+    }
+
     res.json(tasks[taskIdx].subtasks[subtaskIdx]);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -3060,6 +3379,58 @@ app.put('/api/projects/:projectId/tasks/bulk-update', authenticateToken, async (
     }
     res.json(response);
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== BULK TASK EDIT (fields) ==============
+app.put('/api/projects/:projectId/tasks/bulk-edit', authenticateToken, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    if (!canWriteProject(req.user, projectId)) {
+      return res.status(403).json({ error: 'Write access required for this project' });
+    }
+
+    const { taskIds, updates } = req.body;
+
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({ error: 'taskIds array is required' });
+    }
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'updates object is required' });
+    }
+
+    const allowedFields = ['owner', 'secondaryOwner', 'dueDate', 'phase', 'showToClient', 'tags'];
+    const fieldsToUpdate = {};
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        fieldsToUpdate[field] = updates[field];
+      }
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided in updates' });
+    }
+
+    const tasks = await getRawTasks(projectId);
+    let updatedCount = 0;
+
+    for (const taskId of taskIds) {
+      const idx = tasks.findIndex(t => t.id === parseInt(taskId) || String(t.id) === String(taskId));
+      if (idx !== -1) {
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+          tasks[idx][field] = value;
+        }
+        updatedCount++;
+      }
+    }
+
+    await db.set(`tasks_${projectId}`, tasks);
+
+    res.json({ message: `${updatedCount} tasks updated`, updatedCount });
+  } catch (error) {
+    console.error('Bulk edit error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -3356,6 +3727,45 @@ app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, requ
     tasks[taskIdx].files.push(fileEntry);
     await db.set(`tasks_${projectId}`, tasks);
     
+    if (tasks[taskIdx].showToClient) {
+      try {
+        const appBaseUrl = `${req.protocol}://${req.get('host')}`;
+        const slug = project.slug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const portalLink = `${appBaseUrl}/portal/${slug}#task-${taskId}`;
+        const allUsers = await getUsers();
+        const clientUsers = allUsers.filter(u => u.role === 'client' && u.assignedProjects && u.assignedProjects.includes(projectId));
+        const templates = await getEmailTemplates();
+        const tpl = getTemplateById(templates, 'task_attachment');
+        for (const client of clientUsers) {
+          const vars = {
+            taskName: tasks[taskIdx].taskTitle || tasks[taskIdx].clientName || tasks[taskIdx].name || 'Task',
+            fileName: fileEntry.name,
+            projectName: project.name || project.clientName,
+            portalLink,
+            recipientName: client.name || client.email,
+            recipientEmail: client.email,
+            appUrl: appBaseUrl
+          };
+          const subject = renderTemplate(tpl.subject, vars);
+          const body = renderTemplate(tpl.body, vars);
+          const htmlBody = buildHtmlEmail(body, null, portalLink, 'View in Portal', null, appBaseUrl);
+          await queueNotification('task_attachment', client.id, client.email, client.name || client.email, {
+            subject,
+            body,
+            htmlBody,
+            ctaUrl: portalLink,
+            ctaLabel: 'View in Portal'
+          }, {
+            relatedEntityId: taskId,
+            relatedEntityType: 'task',
+            createdBy: req.user.id
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to queue task attachment notifications:', notifErr);
+      }
+    }
+    
     res.json({ message: 'File uploaded successfully', file: fileEntry });
   } catch (error) {
     console.error('Task file upload error:', error);
@@ -3415,17 +3825,16 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
     const isAdmin = req.user.role === config.ROLES.ADMIN;
     if (!isAdmin) {
       const userAssignedProjects = req.user.assignedProjects || [];
-      projects = projects.filter(p => userAssignedProjects.includes(p.id));
-
-      // Non-admins only see published projects unless they have project-level admin access (managers)
-      const accessLevels = req.user.projectAccessLevels || {};
-      projects = projects.filter(p => {
-        const pubStatus = p.publishedStatus || 'published';
-        if (pubStatus === 'published') return true;
-        // Draft: only visible to project-level admins (managers)
-        return accessLevels[p.id] === 'admin';
-      });
+      // Include assigned projects and any projects the user created
+      projects = projects.filter(p => userAssignedProjects.includes(p.id) || p.createdBy === req.user.id);
     }
+
+    // Draft projects are only visible to the user who created them — applies to ALL users including admins
+    projects = projects.filter(p => {
+      const pubStatus = p.publishedStatus || 'published';
+      if (pubStatus === 'published') return true;
+      return p.createdBy === req.user.id;
+    });
     
     const projectsWithDetails = await Promise.all(projects.map(async (project) => {
       const template = templates.find(t => t.id === project.template);
@@ -3595,6 +4004,12 @@ app.get('/api/projects/:id', authenticateToken, async (req, res) => {
     if (!canAccessProject(req.user, req.params.id)) {
       return res.status(403).json({ error: 'Access denied to this project' });
     }
+
+    // Draft projects are only visible to the user who created them — applies to ALL users
+    const pubStatus = project.publishedStatus || 'published';
+    if (pubStatus === 'draft' && project.createdBy !== req.user.id) {
+      return res.status(403).json({ error: 'This project is in draft mode' });
+    }
     
     const templates = await db.get('templates') || [];
     const template = templates.find(t => t.id === project.template);
@@ -3646,9 +4061,11 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
 
     const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'publishedStatus', 'clientPortalDomain', 'goLiveDate'];
     
-    // Check if client name is being changed - regenerate slug
+    // Capture old values before the update loop
+    const oldPublishedStatus = projects[idx].publishedStatus || 'draft';
     const oldClientName = projects[idx].clientName;
     const newClientName = req.body.clientName;
+    const oldStatus = projects[idx].status;
     
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
@@ -3684,6 +4101,61 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
     }
     
     await db.set('projects', projects);
+
+    // Release held notifications when project is published (draft → published)
+    const newPublishedStatus = req.body.publishedStatus;
+    if (newPublishedStatus === 'published' && oldPublishedStatus === 'draft') {
+      (async () => {
+        try {
+          const queue = (await db.get('pending_notifications')) || [];
+          let released = 0;
+          queue.forEach(n => {
+            if (n.status === 'held' && n.relatedProjectId === projects[idx].id) {
+              n.status = 'pending';
+              released++;
+            }
+          });
+          if (released > 0) {
+            await db.set('pending_notifications', queue);
+            console.log(`📬 Released ${released} held notification(s) for project "${projects[idx].name}" on publish`);
+          }
+        } catch (err) {
+          console.error('Failed to release held notifications on publish:', err.message);
+        }
+      })();
+    }
+
+    // Re-hold pending task_assignment notifications when project moves back to draft (published → draft)
+    if (newPublishedStatus === 'draft' && oldPublishedStatus === 'published') {
+      (async () => {
+        try {
+          const queue = (await db.get('pending_notifications')) || [];
+          let reheld = 0;
+          queue.forEach(n => {
+            if (n.status === 'pending' && n.relatedProjectId === projects[idx].id && n.type === 'task_assignment') {
+              n.status = 'held';
+              reheld++;
+            }
+          });
+          if (reheld > 0) {
+            await db.set('pending_notifications', queue);
+            console.log(`🔒 Re-held ${reheld} notification(s) for project "${projects[idx].name}" moved back to draft`);
+          }
+        } catch (err) {
+          console.error('Failed to re-hold notifications on unpublish:', err.message);
+        }
+      })();
+    }
+
+    // Cancel pending task/project notifications when a project is paused or completed.
+    // Runs non-blocking so the response is not delayed.
+    const newStatus = req.body.status;
+    if (newStatus !== undefined && newStatus !== oldStatus && ['paused', 'completed'].includes(newStatus)) {
+      getRawTasks(req.params.id).then(projectTasks => {
+        const taskIds = (projectTasks || []).map(t => String(t.id));
+        return cancelProjectNotifications(req.params.id, taskIds);
+      }).catch(err => console.error('[NOTIFICATIONS] Failed to cancel project notifications on status change:', err));
+    }
 
     // Cascade clientName changes to service/validation reports (non-blocking)
     if (newClientName && newClientName !== oldClientName) {
@@ -3736,7 +4208,14 @@ app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
     
     // Also delete the project's tasks
     await db.delete(`tasks_${projectId}`);
-    
+
+    // Cancel any held notifications for this project
+    const notifQueue = (await db.get('pending_notifications')) || [];
+    const cleanedQueue = notifQueue.filter(n => !(n.status === 'held' && n.relatedProjectId === projectId));
+    if (cleanedQueue.length !== notifQueue.length) {
+      await db.set('pending_notifications', cleanedQueue);
+    }
+
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
     console.error('Delete project error:', error);
@@ -3858,6 +4337,14 @@ app.post('/api/projects/:id/tasks', authenticateToken, async (req, res) => {
     };
     tasks.push(newTask);
     await db.set(`tasks_${projectId}`, tasks);
+
+    if (newTask.owner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(newTask.owner, newTask, null, project, req.user.id);
+      }
+    }
+
     res.json(newTask);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -3923,6 +4410,7 @@ app.put('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (req,
       }
     }
 
+    const previousOwner = task.owner;
     const wasCompleted = task.completed;
 
     // Server-side validation: Check for incomplete subtasks before allowing completion
@@ -3975,6 +4463,13 @@ app.put('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (req,
 
       // Check for phase completion
       checkPhaseCompletion(projectId, tasks, completedTask);
+    }
+
+    if (sanitizedUpdates.owner && sanitizedUpdates.owner !== previousOwner) {
+      const project = (await getProjects()).find(p => String(p.id) === String(projectId));
+      if (project) {
+        sendAssignmentNotification(sanitizedUpdates.owner, tasks[idx], null, project, req.user.id);
+      }
     }
     
     res.json(tasks[idx]);
@@ -4207,9 +4702,11 @@ app.post('/api/announcements', authenticateToken, requireClientPortalAdmin, asyn
         // Load editable announcement template
         const annTemplates = await getEmailTemplates();
         const annTpl = getTemplateById(annTemplates, 'announcement');
+        const appBaseUrl = await getAppBaseUrl();
         const baseVars = {
           title: newAnnouncement.title,
           content: newAnnouncement.content,
+          appUrl: appBaseUrl,
           priorityTag: newAnnouncement.priority ? '[PRIORITY] ' : '',
           priorityBanner: newAnnouncement.priority ? '<p style="color: #dc2626; font-weight: 600; margin-bottom: 8px;">⚠️ This is a priority announcement</p>' : '',
           attachmentUrl: newAnnouncement.attachmentUrl || '',
@@ -4352,9 +4849,11 @@ app.get('/api/client-portal/data', authenticateToken, async (req, res) => {
     const announcements = (await db.get('announcements')) || [];
     const activities = (await db.get('activity_log')) || [];
     
-    // Get client's assigned projects
+    // Get client's assigned projects (exclude unpublished/draft and completed)
     const clientProjects = projects.filter(p => 
-      (req.user.assignedProjects || []).includes(p.id)
+      (req.user.assignedProjects || []).includes(p.id) &&
+      (p.publishedStatus || 'published') === 'published' &&
+      p.status !== 'Complete' && p.status !== 'Completed'
     );
     
     // Get tasks for each project (only client-visible ones)
@@ -4436,6 +4935,210 @@ app.get('/api/client-portal/data', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Client portal data error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============== CLIENT PORTAL SOFT PILOT ==============
+
+app.get('/api/client-portal/soft-pilot', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== config.ROLES.CLIENT) {
+      return res.status(403).json({ error: 'Client access required' });
+    }
+
+    const projects = await getProjects();
+    const clientProjects = projects.filter(p =>
+      (req.user.assignedProjects || []).includes(p.id) &&
+      (p.publishedStatus || 'published') === 'published' &&
+      p.status !== 'Complete' && p.status !== 'Completed'
+    );
+
+    if (clientProjects.length === 0) {
+      return res.json({ tasks: [], responses: {}, submitted: null });
+    }
+
+    const project = clientProjects[0];
+    const allTasks = await getTasks(project.id);
+    const softPilotTasks = allTasks
+      .filter(t => (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot'))
+      .map(t => ({
+        id: t.id,
+        title: t.taskTitle || t.title || '',
+        description: t.description || '',
+        completed: t.completed || false,
+        dueDate: t.dueDate || '',
+        subtasks: (t.subtasks || []).map(st => ({
+          id: st.id,
+          title: st.title || '',
+          completed: st.completed || false,
+          notApplicable: st.notApplicable || false,
+          status: st.status || 'Pending'
+        }))
+      }));
+
+    res.json({
+      tasks: softPilotTasks,
+      responses: project.softPilotResponses || {},
+      submitted: project.softPilotChecklistSubmitted || null
+    });
+  } catch (error) {
+    console.error('Client portal soft-pilot GET error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/client-portal/soft-pilot', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== config.ROLES.CLIENT) {
+      return res.status(403).json({ error: 'Client access required' });
+    }
+
+    const { responses } = req.body;
+    if (!responses || typeof responses !== 'object') {
+      return res.status(400).json({ error: 'Invalid responses object' });
+    }
+
+    const projects = await db.get('projects') || [];
+    const clientProjects = projects.filter(p =>
+      (req.user.assignedProjects || []).includes(p.id)
+    );
+
+    if (clientProjects.length === 0) {
+      return res.status(404).json({ error: 'No project found' });
+    }
+
+    const project = clientProjects[0];
+    const existing = project.softPilotResponses || {};
+
+    for (const [taskId, response] of Object.entries(responses)) {
+      existing[taskId] = {
+        ...(existing[taskId] || {}),
+        ...response,
+        subtasks: {
+          ...((existing[taskId] || {}).subtasks || {}),
+          ...(response.subtasks || {})
+        },
+        updatedAt: new Date().toISOString(),
+        updatedBy: req.user.email
+      };
+    }
+
+    project.softPilotResponses = existing;
+    await db.set('projects', projects);
+
+    res.json({ message: 'Responses saved', responses: existing });
+  } catch (error) {
+    console.error('Client portal soft-pilot PUT error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/client-portal/soft-pilot/submit', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== config.ROLES.CLIENT) {
+      return res.status(403).json({ error: 'Client access required' });
+    }
+
+    const { signature } = req.body;
+    if (!signature || !signature.name?.trim() || !signature.title?.trim() || !signature.date?.trim()) {
+      return res.status(400).json({ error: 'Name, title, and date are required in signature' });
+    }
+
+    const projects = await db.get('projects') || [];
+    const clientProjects = projects.filter(p =>
+      (req.user.assignedProjects || []).includes(p.id)
+    );
+
+    if (clientProjects.length === 0) {
+      return res.status(404).json({ error: 'No project found' });
+    }
+
+    const project = clientProjects[0];
+    const allTasks = await getTasks(project.id);
+    const softPilotTasks = allTasks.filter(t =>
+      (t.tags || []).some(tag => tag.toLowerCase() === 'softpilot')
+    );
+
+    const responses = project.softPilotResponses || {};
+    const taskLines = softPilotTasks.map(t => {
+      const r = responses[t.id] || {};
+      const status = r.status || (t.completed ? 'complete' : 'pending');
+      const notes = r.notes || '';
+      let line = `<tr><td style="padding:6px;border:1px solid #ddd;">${t.title}</td><td style="padding:6px;border:1px solid #ddd;">${status}</td><td style="padding:6px;border:1px solid #ddd;">${notes}</td></tr>`;
+      if (t.subtasks && t.subtasks.length > 0) {
+        for (const st of t.subtasks) {
+          const sr = (r.subtasks || {})[st.id] || {};
+          const stStatus = sr.status || st.status || 'Pending';
+          line += `<tr><td style="padding:6px 6px 6px 24px;border:1px solid #ddd;font-size:13px;">↳ ${st.title}</td><td style="padding:6px;border:1px solid #ddd;font-size:13px;">${stStatus}</td><td style="padding:6px;border:1px solid #ddd;font-size:13px;"></td></tr>`;
+        }
+      }
+      return line;
+    }).join('');
+
+    const checklistHtml = `<html><head><style>body{font-family:Arial,sans-serif;padding:20px;}table{border-collapse:collapse;width:100%;}th,td{text-align:left;}</style></head><body>
+      <h1>Virtual Soft Pilot Checklist</h1>
+      <p><strong>Client:</strong> ${project.clientName || project.name}</p>
+      <p><strong>Signed by:</strong> ${signature.name} — ${signature.title}</p>
+      <p><strong>Date:</strong> ${signature.date}</p>
+      <table><thead><tr><th style="padding:6px;border:1px solid #ddd;background:#f5f5f5;">Task</th><th style="padding:6px;border:1px solid #ddd;background:#f5f5f5;">Status</th><th style="padding:6px;border:1px solid #ddd;background:#f5f5f5;">Notes</th></tr></thead><tbody>${taskLines}</tbody></table>
+    </body></html>`;
+
+    const submissionCount = (project.softPilotChecklistSubmitted?.submissionCount || 0) + 1;
+    const isResubmission = submissionCount > 1;
+    let driveResult = null;
+
+    try {
+      driveResult = await googledrive.uploadSoftPilotChecklist(
+        project.name,
+        project.clientName,
+        checklistHtml
+      );
+      console.log('✅ Client soft-pilot checklist uploaded to Google Drive:', driveResult.webViewLink);
+    } catch (driveError) {
+      console.error('Google Drive upload failed:', driveError.message);
+    }
+
+    if (project.hubspotRecordId) {
+      try {
+        const noteDetails = isResubmission
+          ? `REVISED Soft-Pilot Checklist (Version ${submissionCount})\n\nUpdated by: ${signature.name}\nTitle: ${signature.title}\nDate: ${signature.date}\n\nThis is an updated version replacing the previous submission.`
+          : `Soft-Pilot Checklist Submitted\n\nSigned by: ${signature.name}\nTitle: ${signature.title}\nDate: ${signature.date}`;
+
+        const fullNote = driveResult
+          ? `${noteDetails}\n\nGoogle Drive Link: ${driveResult.webViewLink}`
+          : noteDetails;
+
+        await hubspot.logRecordActivity(
+          project.hubspotRecordId,
+          isResubmission ? 'Soft-Pilot Checklist Updated' : 'Soft-Pilot Checklist Submitted',
+          fullNote
+        );
+        console.log('✅ HubSpot note created for client soft-pilot checklist submission');
+      } catch (hubspotError) {
+        console.error('HubSpot note creation failed:', hubspotError.message);
+      }
+    }
+
+    project.softPilotChecklistSubmitted = {
+      submittedAt: new Date().toISOString(),
+      submittedBy: req.user.email,
+      signature,
+      submissionCount,
+      isRevision: isResubmission,
+      driveLink: driveResult?.webViewLink || null
+    };
+    await db.set('projects', projects);
+
+    res.json({
+      message: isResubmission
+        ? 'Soft-pilot checklist updated and saved to Google Drive'
+        : 'Soft-pilot checklist submitted and uploaded to Google Drive',
+      driveLink: driveResult?.webViewLink || null,
+      submissionCount
+    });
+  } catch (error) {
+    console.error('Client portal soft-pilot submit error:', error);
+    res.status(500).json({ error: error.message || 'Failed to submit checklist' });
   }
 });
 
@@ -5148,19 +5851,22 @@ app.post('/api/client/submit-ticket', authenticateToken, async (req, res) => {
       hubspotTicketId: null
     };
 
-    // Attempt to create HubSpot ticket tagged External
+    // Attempt to create HubSpot ticket
     if (process.env.HUBSPOT_PRIVATE_APP_TOKEN) {
       try {
         const companyId = clientUser.hubspotCompanyId || null;
         const contactId = clientUser.hubspotContactId || null;
         const dealId = clientUser.hubspotDealId || null;
+        const ticketConfig = (await db.get('hubspot_ticket_config')) || {};
         const result = await hubspot.createTicket(
           {
             subject: ticketRecord.subject,
             description: ticketRecord.description,
             priority: ticketRecord.priority,
             submittedBy: ticketRecord.submittedBy,
-            issueCategory: ticketRecord.issueCategory
+            issueCategory: ticketRecord.issueCategory,
+            pipelineId: ticketConfig.pipelineId || '0',
+            stageId: ticketConfig.newStageId || '1'
           },
           companyId,
           contactId,
@@ -5183,6 +5889,30 @@ app.post('/api/client/submit-ticket', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error submitting client ticket:', error);
     res.status(500).json({ error: 'Failed to submit ticket' });
+  }
+});
+
+// ===== HubSpot Ticket Pipeline Config =====
+
+app.get('/api/admin/ticket-config', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const config = (await db.get('hubspot_ticket_config')) || {};
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch ticket config' });
+  }
+});
+
+app.put('/api/admin/ticket-config', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { pipelineId, newStageId } = req.body;
+    const config = (await db.get('hubspot_ticket_config')) || {};
+    if (pipelineId !== undefined) config.pipelineId = pipelineId;
+    if (newStageId !== undefined) config.newStageId = newStageId;
+    await db.set('hubspot_ticket_config', config);
+    res.json({ success: true, config });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update ticket config' });
   }
 });
 
@@ -7609,7 +8339,7 @@ const escapeCSV = (value) => {
 
 const PHASE_NAMES = {
   'Phase 1': 'Phase 1: Contract & Initial Setup',
-  'Phase 2': 'Phase 2: Billing, CLIA & Hiring',
+  'Phase 2': 'Phase 2: Financials, CLIA & Hiring',
   'Phase 3': 'Phase 3: Tech Infrastructure & LIS Integration',
   'Phase 4': 'Phase 4: Inventory Forecasting & Procurement',
   'Phase 5': 'Phase 5: Supply Orders & Logistics',
@@ -9304,7 +10034,8 @@ app.put('/api/service-reports/:id/complete', authenticateToken, requireServiceAc
             driveWebContentLink: serviceReports[reportIndex].driveWebContentLink || null,
             createdAt: new Date().toISOString(),
             uploadedBy: 'system',
-            uploadedByName: 'Thrive 365 Labs'
+            uploadedByName: 'Thrive 365 Labs',
+            active: true
           });
           await db.set('client_documents', clientDocuments);
           console.log(`✅ Completed assigned report auto-added to client files for ${client.slug}`);
@@ -11659,6 +12390,11 @@ app.get('/changelog', (req, res) => {
   res.sendFile(__dirname + '/public/changelog.html');
 });
 
+// Password reset link page (public)
+app.get('/password-reset-:token', (req, res) => {
+  res.sendFile(__dirname + '/public/password-reset.html');
+});
+
 // ============== CHANGELOG API ==============
 
 // Get all changelog entries (public, sorted by version descending)
@@ -11682,6 +12418,41 @@ function generateTempPassword(user) {
   const crypto = require('crypto');
   const randomPart = crypto.randomBytes(4).toString('hex');
   return `Temp${randomPart}!`;
+}
+
+// Store a password reset link token in the DB and return the token
+async function createPasswordResetLink(user, plainPassword) {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(20).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const links = (await db.get('password_reset_links')) || [];
+  // Remove any existing links for this user
+  const filtered = links.filter(l => l.userId !== user.id);
+  filtered.push({ token, userId: user.id, tempPassword: plainPassword, createdAt: new Date().toISOString(), expiresAt });
+  await db.set('password_reset_links', filtered);
+  return token;
+}
+
+// Send the password reset email with the secure link
+async function sendPasswordResetEmail(user, token) {
+  const resetUrl = `https://thrive365labs.live/password-reset-${token}`;
+  const htmlBody = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: #045E9F; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">Thrive 365 Labs</h1>
+      </div>
+      <div style="background: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
+        <p style="color: #374151; font-size: 16px; margin-top: 0;">Hi ${user.name},</p>
+        <p style="color: #374151; font-size: 16px;">Your password has been reset by an administrator. Click the button below to view your temporary credentials.</p>
+        <p style="color: #374151; font-size: 16px;">You will be required to create a new password when you log in.</p>
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${resetUrl}" style="background: #045E9F; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-block;">View My Temporary Password</a>
+        </div>
+        <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your administrator immediately.</p>
+      </div>
+    </div>`;
+  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to view your temporary credentials and log in:\n${resetUrl}\n\nThis link expires in 24 hours.`;
+  return sendEmail(user.email, 'Your Thrive 365 Labs Password Has Been Reset', plainText, { htmlBody });
 }
 
 // Bulk password reset for all users (admin only)
@@ -11730,13 +12501,28 @@ app.post('/api/admin/bulk-password-reset', authenticateToken, requireAdmin, asyn
         email: user.email,
         name: user.name,
         role: user.role,
-        tempPassword: tempPassword // Include for admin reference
+        _plainPassword: tempPassword // kept in-memory only to send email; not returned to client
       });
       results.total++;
     }
 
     await db.set('users', users);
     invalidateUsersCache();
+
+    // Send reset emails for all affected users (non-blocking)
+    (async () => {
+      for (const entry of results.reset) {
+        const fullUser = users.find(u => u.id === entry.id);
+        if (fullUser) {
+          try {
+            const token = await createPasswordResetLink(fullUser, entry._plainPassword);
+            await sendPasswordResetEmail(fullUser, token);
+          } catch (err) {
+            console.error(`Bulk reset email error for ${entry.email}:`, err);
+          }
+        }
+      }
+    })();
 
     // Log activity
     await logActivity(
@@ -11748,10 +12534,16 @@ app.post('/api/admin/bulk-password-reset', authenticateToken, requireAdmin, asyn
       { userType, resetCount: results.total }
     );
 
+    // Strip internal plain password field before sending response
+    const safeResults = {
+      ...results,
+      reset: results.reset.map(({ _plainPassword, ...r }) => r)
+    };
+
     res.json({
-      message: `Successfully reset passwords for ${results.total} users`,
+      message: `Successfully reset passwords for ${results.total} users. Reset links have been emailed to each user.`,
       total: results.total, // Include at top level for backward compatibility
-      results
+      results: safeResults
     });
   } catch (error) {
     console.error('Bulk password reset error:', error);
@@ -11779,16 +12571,19 @@ app.post('/api/admin/reset-user-password/:userId', authenticateToken, requireAdm
     const hashedPassword = await bcrypt.hash(newPassword, config.BCRYPT_SALT_ROUNDS);
 
     users[userIndex].password = hashedPassword;
-    users[userIndex].requirePasswordChange = !customPassword; // Only require change for temp passwords
+    users[userIndex].requirePasswordChange = true; // Always require change regardless of temp or custom
     users[userIndex].lastPasswordReset = new Date().toISOString();
 
     await db.set('users', users);
     invalidateUsersCache();
 
+    // Create secure reset link and email it to the user
+    const token = await createPasswordResetLink(user, newPassword);
+    sendPasswordResetEmail(user, token).catch(err => console.error('Password reset email error:', err));
+
     res.json({
-      message: 'Password reset successfully',
-      ...(customPassword ? {} : { tempPassword: newPassword }),
-      requirePasswordChange: users[userIndex].requirePasswordChange
+      message: 'Password reset successfully. A reset link has been emailed to the user.',
+      requirePasswordChange: true
     });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -12220,7 +13015,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App');
+      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App', null, appBaseUrl);
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -12235,15 +13030,18 @@ app.post('/api/admin/email-templates/:id/test-send', authenticateToken, requireA
     const templates = await getEmailTemplates();
     const tpl = getTemplateById(templates, req.params.id);
     if (!tpl) return res.status(404).json({ error: 'Template not found' });
+    const appBaseUrl = await getAppBaseUrl();
     const vars = {};
     getPoolVariablesForTemplate(tpl.id).forEach(v => { vars[v.key] = v.example || `[${v.label}]`; });
     vars.recipientName = req.user.name;
     vars.recipientEmail = req.user.email;
+    vars.appUrl = appBaseUrl;
+    vars.loginUrl = `${appBaseUrl}/login`;
     const subject = `[TEST] ${renderTemplate(tpl.subject, vars)}`;
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null);
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, null, null, null, appBaseUrl);
     const result = await sendEmail(req.user.email, subject, body, { htmlBody: htmlSrc });
     if (!result.success) return res.status(500).json({ error: result.error || 'Send failed' });
     res.json({ message: `Test email sent to ${req.user.email}` });
@@ -12637,7 +13435,7 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const body = renderTemplate(tpl.body, vars);
     const htmlSrc = tpl.id === 'welcome_email'
       ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App');
+      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App', null, appBaseUrl);
     res.json({ subject, body, html: htmlSrc });
   } catch (error) {
     console.error('Preview email template error:', error);
@@ -12710,6 +13508,26 @@ app.listen(PORT, () => {
     }
   })();
 
+  // Fix service report documents missing active flag
+  (async () => {
+    try {
+      const docs = (await db.get('client_documents')) || [];
+      let fixed = 0;
+      docs.forEach(d => {
+        if (d.serviceReportId && d.active === undefined) {
+          d.active = true;
+          fixed++;
+        }
+      });
+      if (fixed > 0) {
+        await db.set('client_documents', docs);
+        console.log(`🔧 Fixed ${fixed} service report document(s) missing active flag`);
+      }
+    } catch (err) {
+      console.error('Service report doc fix failed:', err.message);
+    }
+  })();
+
   // Start HubSpot ticket polling (webhook workaround)
   initializeTicketPolling();
 
@@ -12729,6 +13547,31 @@ app.listen(PORT, () => {
   setTimeout(processNotificationQueue, 5000);
   setTimeout(scanAndQueueNotifications, 8000);
   console.log('⚡ Notification processors will run immediately at startup (5s / 8s)');
+
+  // Re-hold any pending task_assignment notifications that belong to draft projects
+  // (handles notifications queued before this draft-hold feature was introduced)
+  (async () => {
+    try {
+      const queue = (await db.get('pending_notifications')) || [];
+      const allProjects = await getProjects();
+      const draftProjectIds = new Set(
+        allProjects.filter(p => (p.publishedStatus || 'draft') === 'draft').map(p => p.id)
+      );
+      let held = 0;
+      queue.forEach(n => {
+        if (n.status === 'pending' && n.type === 'task_assignment' && n.relatedProjectId && draftProjectIds.has(n.relatedProjectId)) {
+          n.status = 'held';
+          held++;
+        }
+      });
+      if (held > 0) {
+        await db.set('pending_notifications', queue);
+        console.log(`🔒 Startup: retroactively held ${held} pending notification(s) for draft projects`);
+      }
+    } catch (err) {
+      console.error('Startup: failed to retroactively hold draft notifications:', err.message);
+    }
+  })();
 
   // One-time migrations for service reports
   (async () => {
