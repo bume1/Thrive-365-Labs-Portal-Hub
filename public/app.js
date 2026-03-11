@@ -1,3 +1,15 @@
+/**
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
+ *
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+ *
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
+ */
+
 const { useState, useEffect, useMemo } = React;
 const API_URL = window.location.origin;
 
@@ -3545,9 +3557,6 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
       
       // Count subtasks for the success message
       const totalSubtasks = templateTasks.reduce((sum, t) => sum + (t.subtasks?.length || 0), 0);
-      console.log('Creating template with tasks:', templateTasks.length, 'subtasks:', totalSubtasks);
-      console.log('Sample task with subtasks:', templateTasks.find(t => t.subtasks?.length > 0));
-      
       const result = await api.createTemplate(token, {
         name: templateName,
         description: `Created from ${project.name} on ${new Date().toLocaleDateString()}`,

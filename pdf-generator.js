@@ -1,6 +1,13 @@
 /**
- * PDF Generator for Service Reports and Validation Reports
- * Uses pdfkit to generate professional PDF documents
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
+ *
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+ *
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
  */
 
 const PDFDocument = require('pdfkit');

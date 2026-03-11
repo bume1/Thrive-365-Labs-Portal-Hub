@@ -1,18 +1,13 @@
 /**
- * Changelog Generator
- * Automatically generates changelog from git commits
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
  *
- * Commit message conventions:
- * - feat: or feature: for new features
- * - fix: or bugfix: for bug fixes
- * - refactor: for code refactoring
- * - ui: or style: for UI/styling changes
- * - docs: for documentation changes
- * - perf: for performance improvements
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
  *
- * Version tagging:
- * - Commits with "v1.2.3" pattern in message are treated as version releases
- * - Or use git tags for versions
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
  */
 
 const { execSync } = require('child_process');

@@ -1,3 +1,15 @@
+/**
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
+ *
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+ *
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
+ */
+
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -131,7 +143,7 @@ app.get('/thrive365labslaunch', (req, res) => {
       });
       await db.set('users', users);
     invalidateUsersCache();
-      console.log('✅ Admin user created: bianca@thrive365labs.live / Thrive2025!');
+      console.log('✅ Default admin user created successfully');
     }
   } catch (err) {
     console.error('Error creating admin user:', err);
@@ -13493,7 +13505,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
-  console.log(`🔐 Admin login: bianca@thrive365labs.live / Thrive2025!`);
+  console.log(`🔐 Default admin credentials configured via environment variables`);
 
   // Safety net: reactivate any admin accounts that are inactive (prevent lockout)
   (async () => {

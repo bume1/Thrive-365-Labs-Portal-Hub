@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Database Inspector Tool
- * Quick tool for inspecting Replit Database contents
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
  *
- * Usage:
- *   node debug-db.js                    # List all keys
- *   node debug-db.js users              # Inspect users collection
- *   node debug-db.js service_reports    # Inspect service reports
- *   node debug-db.js --search email@example.com  # Search for value
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+ *
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
  */
 
 const Database = require('@replit/database');

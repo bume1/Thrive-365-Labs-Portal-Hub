@@ -1,3 +1,14 @@
+<\!--
+  Thrive 365 Labs — Client Portal Hub
+  Version 3.0.0
+
+  Proprietary software licensed to Thrive 365 Labs
+  Developed by  Bianca Ume / OnboardHealth
+  © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+
+  Reviewed and approved for client deployment — March 2026
+  Technical inquiries: bianca@thrive365labs.com
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -158,24 +169,10 @@
           headers: { 'Authorization': `Bearer ${token}` }
         }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' })),
 
-      getAssignedReports: (token) => {
-        console.log('🌐 API CALL: GET /api/service-reports/assigned');
-        return fetch(`${API_URL}/api/service-reports/assigned`, {
+      getAssignedReports: (token) =>
+        fetch(`${API_URL}/api/service-reports/assigned`, {
           headers: { 'Authorization': `Bearer ${token}` }
-        })
-          .then(response => {
-            console.log('📥 Response status:', response.status, response.statusText);
-            return handleResponse(response);
-          })
-          .then(data => {
-            console.log('✅ Assigned reports response:', data);
-            return data;
-          })
-          .catch(err => {
-            console.error('❌ API Error:', err);
-            return { error: err.message || 'Network error' };
-          });
-      },
+        }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' })),
 
       completeAssignedReport: (token, reportId, reportData) =>
         fetch(`${API_URL}/api/service-reports/${reportId}/complete`, {
@@ -449,9 +446,6 @@
     const Sidebar = ({ activePage, onNavigate, user, isMobileOpen, onClose }) => {
       // Check if user can assign reports (super admin or manager with service portal access)
       const canAssignReports = user?.role === 'admin' || (user?.isManager && user?.hasServicePortalAccess);
-
-      // Debug logging
-      console.log('Sidebar user data:', { role: user?.role, isManager: user?.isManager, hasServicePortalAccess: user?.hasServicePortalAccess, canAssignReports });
 
       // Admins and managers don't submit reports - they view and assign them
       const isAdminOrManager = user?.role === 'admin' || user?.isManager;
@@ -5577,24 +5571,12 @@
       }, []);
 
       const loadData = async () => {
-        console.log('🔄 LOADING DATA - User:', user?.name, 'Role:', user?.role, 'ID:', user?.id);
-
         const [portalData, clientsData, assignedData, validationsData] = await Promise.all([
           api.getServicePortalData(token),
           api.getClients(token),
           api.getAssignedReports(token),
           api.getActiveValidations(token)
         ]);
-
-        console.log('📊 API RESPONSES:');
-        console.log('  - Portal Data:', portalData?.error || 'OK');
-        console.log('  - Clients:', clientsData?.error || `${clientsData?.length || 0} clients`);
-        console.log('  - Assigned Reports:', assignedData?.error || `${assignedData?.length || 0} reports`);
-        console.log('  - Active Validations:', validationsData?.error || `${validationsData?.length || 0} validations`);
-
-        if (assignedData && !assignedData.error) {
-          console.log('📋 ASSIGNED REPORTS DETAIL:', JSON.stringify(assignedData, null, 2));
-        }
 
         if (portalData.error === 'Invalid token' || portalData.error?.includes('unauthorized')) {
           handleLogout();
@@ -5610,10 +5592,7 @@
         }
 
         if (!assignedData.error && Array.isArray(assignedData)) {
-          console.log('✅ Setting assignedReports state to:', assignedData.length, 'reports');
           setAssignedReports(assignedData);
-        } else {
-          console.log('❌ Not setting assignedReports - Error or not array:', assignedData);
         }
 
         if (!validationsData.error && Array.isArray(validationsData)) {

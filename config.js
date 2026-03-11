@@ -1,12 +1,14 @@
-// ============================================================
-// config.js - Centralized Configuration (Single Source of Truth)
-// ============================================================
-// All configuration values are defined HERE and only here.
-// Every module reads from this file. To change any setting,
-// update it once here and it propagates everywhere.
-//
-// Priority: Environment Variable > DB Setting > Default Value
-// ============================================================
+/**
+ * Thrive 365 Labs — Client Portal Hub
+ * Version 3.0.0
+ *
+ * Proprietary software licensed to Thrive 365 Labs
+ * Developed by  Bianca Ume / OnboardHealth
+ * © 2026 Bianca G. C. Ume, MD, MBA, MS — All Rights Reserved
+ *
+ * Reviewed and approved for client deployment — March 2026
+ * Technical inquiries: bianca@thrive365labs.com
+ */
 
 // ---- Security & Auth ----
 const JWT_SECRET = process.env.JWT_SECRET || 'thrive365-secret-change-in-production';
