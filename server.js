@@ -80,6 +80,13 @@ app.get('/', (req, res) => {
 // Serve static files for the main app path
 // Note: index: false prevents serving index.html automatically for directory requests
 app.use('/launch', express.static('public', staticOptions));
+// Legacy root paths with trailing slash - redirect before static middleware intercepts
+app.get('/thrive365labsLAUNCH/', (req, res) => {
+  res.redirect(301, '/launch');
+});
+app.get('/thrive365labslaunch/', (req, res) => {
+  res.redirect(301, '/launch');
+});
 // Legacy paths - keep for backward compatibility
 app.use('/thrive365labsLAUNCH', express.static('public', staticOptions));
 app.use('/thrive365labslaunch', express.static('public', staticOptions));

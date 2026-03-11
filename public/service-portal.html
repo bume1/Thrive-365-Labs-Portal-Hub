@@ -97,7 +97,7 @@
               localStorage.removeItem('service_user');
               localStorage.removeItem('unified_token');
               localStorage.removeItem('unified_user');
-              window.location.href = '/';
+              window.location.href = '/login';
               throw new Error('Session expired. Redirecting to login...');
             }
           } catch (redirectErr) {
@@ -552,7 +552,7 @@
                   localStorage.removeItem('admin_user');
                   localStorage.removeItem('portal_token');
                   localStorage.removeItem('portal_user');
-                  window.location.href = '/';
+                  window.location.href = '/login';
                 }}
                 className="w-full text-left px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-3 transition font-medium text-sm"
               >
