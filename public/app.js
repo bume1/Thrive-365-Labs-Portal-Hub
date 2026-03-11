@@ -8478,7 +8478,7 @@ const App = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('unified_token');
     localStorage.removeItem('unified_user');
-    window.location.href = '/launch/login';
+    window.location.href = '/login';
   };
 
   const handleSelectProject = (project, taskId = null) => {
