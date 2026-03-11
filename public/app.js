@@ -5714,11 +5714,34 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                   </div>
                                 </div>
                               )}
-                              {viewMode === 'client' && task.completed && task.dateCompleted && (
-                                <p className="mt-1 text-sm text-green-600">
-                                  Completed: {formatDateForDisplay(task.dateCompleted)}
-                                </p>
-                              )}
+                              {viewMode === 'client' && (() => {
+                                const clientOwns = user.role === 'client' && task.owner && task.owner.toLowerCase() === user.email.toLowerCase();
+                                return (
+                                  <>
+                                    {clientOwns && (
+                                      <>
+                                        {task.owner && (
+                                          <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                                            <span className="font-medium">Assigned to:</span> {getOwnerName(task.owner)}
+                                          </p>
+                                        )}
+                                        {task.dueDate && !task.completed && (
+                                          <p className="mt-1 text-xs sm:text-sm">
+                                            <span className={new Date(task.dueDate) < new Date() ? 'text-red-600' : 'text-blue-600'}>
+                                              <span className="font-medium">Due:</span> {formatDateForDisplay(task.dueDate)}
+                                            </span>
+                                          </p>
+                                        )}
+                                      </>
+                                    )}
+                                    {task.completed && task.dateCompleted && (
+                                      <p className="mt-1 text-sm text-green-600">
+                                        Completed: {formatDateForDisplay(task.dateCompleted)}
+                                      </p>
+                                    )}
+                                  </>
+                                );
+                              })()}
                               {viewMode === 'internal' && !task.showToClient && (
                                 <span className="inline-flex items-center gap-1 text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded mt-2">
                                   Internal Only
