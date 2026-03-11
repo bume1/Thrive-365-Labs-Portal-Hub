@@ -2594,6 +2594,24 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
+// Public endpoint: look up a password reset link token (no auth required)
+app.get('/api/auth/password-reset-link/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const links = (await db.get('password_reset_links')) || [];
+    const link = links.find(l => l.token === token);
+    if (!link) return res.status(404).json({ error: 'Invalid or expired reset link.' });
+    if (new Date(link.expiresAt) < new Date()) return res.status(410).json({ error: 'This reset link has expired. Please contact your administrator.' });
+    const users = await getUsers();
+    const user = users.find(u => u.id === link.userId);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    res.json({ name: user.name, email: user.email, tempPassword: link.tempPassword });
+  } catch (error) {
+    console.error('Password reset link lookup error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ============== EMAIL UNSUBSCRIBE / RESUBSCRIBE (public, token-based) ==============
 
 function renderUnsubscribePageHtml(message, isSuccess) {
@@ -2878,10 +2896,12 @@ app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) 
     if (name) users[idx].name = name;
     if (email) users[idx].email = email;
     if (role) users[idx].role = role;
+    let passwordWasReset = false;
     if (password) {
       users[idx].password = await bcrypt.hash(password, config.BCRYPT_SALT_ROUNDS);
       users[idx].requirePasswordChange = true;
       users[idx].lastPasswordReset = new Date().toISOString();
+      passwordWasReset = true;
     }
     if (assignedProjects !== undefined) users[idx].assignedProjects = assignedProjects;
     if (projectAccessLevels !== undefined) users[idx].projectAccessLevels = projectAccessLevels;
@@ -2933,6 +2953,18 @@ app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) 
 
     await db.set('users', users);
     invalidateUsersCache();
+
+    // If password was reset by admin, email the user a secure reset link
+    if (passwordWasReset) {
+      (async () => {
+        try {
+          const token = await createPasswordResetLink(users[idx], password);
+          await sendPasswordResetEmail(users[idx], token);
+        } catch (err) {
+          console.error('Password reset email error (user edit):', err);
+        }
+      })();
+    }
 
     // Cascade name changes to all related data stores (non-blocking)
     const newName = users[idx].name;
@@ -12360,6 +12392,11 @@ app.get('/changelog', (req, res) => {
   res.sendFile(__dirname + '/public/changelog.html');
 });
 
+// Password reset link page (public)
+app.get('/password-reset-:token', (req, res) => {
+  res.sendFile(__dirname + '/public/password-reset.html');
+});
+
 // ============== CHANGELOG API ==============
 
 // Get all changelog entries (public, sorted by version descending)
@@ -12383,6 +12420,41 @@ function generateTempPassword(user) {
   const crypto = require('crypto');
   const randomPart = crypto.randomBytes(4).toString('hex');
   return `Temp${randomPart}!`;
+}
+
+// Store a password reset link token in the DB and return the token
+async function createPasswordResetLink(user, plainPassword) {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(20).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const links = (await db.get('password_reset_links')) || [];
+  // Remove any existing links for this user
+  const filtered = links.filter(l => l.userId !== user.id);
+  filtered.push({ token, userId: user.id, tempPassword: plainPassword, createdAt: new Date().toISOString(), expiresAt });
+  await db.set('password_reset_links', filtered);
+  return token;
+}
+
+// Send the password reset email with the secure link
+async function sendPasswordResetEmail(user, token) {
+  const resetUrl = `https://thrive365labs.live/password-reset-${token}`;
+  const htmlBody = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: #045E9F; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">Thrive 365 Labs</h1>
+      </div>
+      <div style="background: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
+        <p style="color: #374151; font-size: 16px; margin-top: 0;">Hi ${user.name},</p>
+        <p style="color: #374151; font-size: 16px;">Your password has been reset by an administrator. Click the button below to view your temporary credentials.</p>
+        <p style="color: #374151; font-size: 16px;">You will be required to create a new password when you log in.</p>
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${resetUrl}" style="background: #045E9F; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-block;">View My Temporary Password</a>
+        </div>
+        <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your administrator immediately.</p>
+      </div>
+    </div>`;
+  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to view your temporary credentials and log in:\n${resetUrl}\n\nThis link expires in 24 hours.`;
+  return sendEmail(user.email, 'Your Thrive 365 Labs Password Has Been Reset', plainText, { htmlBody });
 }
 
 // Bulk password reset for all users (admin only)
@@ -12431,13 +12503,28 @@ app.post('/api/admin/bulk-password-reset', authenticateToken, requireAdmin, asyn
         email: user.email,
         name: user.name,
         role: user.role,
-        tempPassword: tempPassword // Include for admin reference
+        _plainPassword: tempPassword // kept in-memory only to send email; not returned to client
       });
       results.total++;
     }
 
     await db.set('users', users);
     invalidateUsersCache();
+
+    // Send reset emails for all affected users (non-blocking)
+    (async () => {
+      for (const entry of results.reset) {
+        const fullUser = users.find(u => u.id === entry.id);
+        if (fullUser) {
+          try {
+            const token = await createPasswordResetLink(fullUser, entry._plainPassword);
+            await sendPasswordResetEmail(fullUser, token);
+          } catch (err) {
+            console.error(`Bulk reset email error for ${entry.email}:`, err);
+          }
+        }
+      }
+    })();
 
     // Log activity
     await logActivity(
@@ -12449,10 +12536,16 @@ app.post('/api/admin/bulk-password-reset', authenticateToken, requireAdmin, asyn
       { userType, resetCount: results.total }
     );
 
+    // Strip internal plain password field before sending response
+    const safeResults = {
+      ...results,
+      reset: results.reset.map(({ _plainPassword, ...r }) => r)
+    };
+
     res.json({
-      message: `Successfully reset passwords for ${results.total} users`,
+      message: `Successfully reset passwords for ${results.total} users. Reset links have been emailed to each user.`,
       total: results.total, // Include at top level for backward compatibility
-      results
+      results: safeResults
     });
   } catch (error) {
     console.error('Bulk password reset error:', error);
@@ -12480,16 +12573,19 @@ app.post('/api/admin/reset-user-password/:userId', authenticateToken, requireAdm
     const hashedPassword = await bcrypt.hash(newPassword, config.BCRYPT_SALT_ROUNDS);
 
     users[userIndex].password = hashedPassword;
-    users[userIndex].requirePasswordChange = !customPassword; // Only require change for temp passwords
+    users[userIndex].requirePasswordChange = true; // Always require change regardless of temp or custom
     users[userIndex].lastPasswordReset = new Date().toISOString();
 
     await db.set('users', users);
     invalidateUsersCache();
 
+    // Create secure reset link and email it to the user
+    const token = await createPasswordResetLink(user, newPassword);
+    sendPasswordResetEmail(user, token).catch(err => console.error('Password reset email error:', err));
+
     res.json({
-      message: 'Password reset successfully',
-      ...(customPassword ? {} : { tempPassword: newPassword }),
-      requirePasswordChange: users[userIndex].requirePasswordChange
+      message: 'Password reset successfully. A reset link has been emailed to the user.',
+      requirePasswordChange: true
     });
   } catch (error) {
     console.error('Reset password error:', error);
