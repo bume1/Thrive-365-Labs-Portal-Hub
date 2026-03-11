@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.22.9 - March 11, 2026
+
+#### Changes
+- Thrive 365 Labs — Client Portal Hub v3.0.0
+
+
 ### Version 3.22.8 - March 11, 2026
 
 #### Changes
