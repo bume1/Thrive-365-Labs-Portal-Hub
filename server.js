@@ -4059,8 +4059,6 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Client name cannot be empty' });
     }
 
-
-
     const allowedFields = ['name', 'clientName', 'projectManager', 'hubspotRecordId', 'hubspotRecordType', 'status', 'publishedStatus', 'clientPortalDomain', 'goLiveDate'];
     
     // Capture old values before the update loop
