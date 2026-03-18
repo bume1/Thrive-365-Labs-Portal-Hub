@@ -29,7 +29,7 @@ const { sendEmail, sendBulkEmail, sendBatchEmails } = require('./email');
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: config.MAX_FILE_SIZE }i
+  limits: { fileSize: config.MAX_FILE_SIZE }
   
 });
 
@@ -1140,7 +1140,7 @@ async function sendWelcomeEmail(user, plainPassword) {
       { subject, body, htmlBody },
       { relatedEntityId: user.id, relatedEntityType: 'user', createdBy: 'system' }
     );
-    if (!notification) console.error('Welcome email failed to queue for', user.email);
+    if (!notification) console.error('Welcome email failed to queue for user:', user.id);
     return notification ? { success: true, queued: true } : { success: false, error: 'Failed to queue' };
   } catch (err) {
     console.error('sendWelcomeEmail error:', err);
@@ -2456,12 +2456,12 @@ app.post('/api/auth/login', async (req, res) => {
     const users = await getUsers();
     const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (!user) {
-      console.log('Login failed: User not found for email:', email);
+      console.log('Login failed: user not found');
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      console.log('Login failed: Password mismatch for:', email);
+      console.log('Login failed: password mismatch');
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     // Block inactive accounts from logging in
@@ -2606,7 +2606,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
     await db.set('password_reset_requests', resetRequests);
     
-    console.log(`Password reset requested for ${email} - Admin action required`);
+    console.log('Password reset requested - Admin action required');
     res.json({ message: 'Your request has been submitted. An administrator will reach out to you shortly to help reset your password.' });
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -4845,7 +4845,7 @@ app.delete('/api/admin/reset-test-data', authenticateToken, requireAdmin, async 
       results.announcementsCleared = oldAnnouncements.length;
     }
 
-    console.log(`[ADMIN] Test data reset by ${req.user.email}:`, results);
+    console.log(`[ADMIN] Test data reset by user ${req.user.id}:`, results);
     res.json({
       message: 'Test data reset successfully',
       ...results
@@ -5691,7 +5691,7 @@ app.post('/api/webhook/hubspot/ticket-created', validateHubSpotWebhook, async (r
     if (portalTickets.length > 1000) portalTickets.length = 1000;
 
     await db.set('portal_tickets', portalTickets);
-    console.log(`🎫 Portal ticket registered: ${ticketId} for ${contactEmail || companyId}`);
+    console.log(`🎫 Portal ticket registered: ${ticketId} for company ${companyId}`);
 
     res.json({ success: true, ticketId, message: 'Ticket registered for portal display' });
   } catch (error) {
@@ -5893,7 +5893,7 @@ app.post('/api/client/submit-ticket', authenticateToken, async (req, res) => {
           dealId
         );
         ticketRecord.hubspotTicketId = result.ticketId;
-        console.log(`🎫 HubSpot ticket created: ${result.ticketId} for ${clientUser.email}`);
+        console.log(`🎫 HubSpot ticket created: ${result.ticketId} for user ${clientUser.id}`);
       } catch (hsErr) {
         console.warn(`⚠️ HubSpot ticket creation failed (storing locally only): ${hsErr.message}`);
       }
@@ -6105,14 +6105,10 @@ app.get('/api/client/hubspot/tickets', authenticateToken, async (req, res) => {
       }, null);
     }
 
-    console.log(`🎫 Ticket fetch for user ${clientUser.username || clientUser.email}:`);
-    console.log(`   - Company ID: "${hubspotCompanyId}"`);
-    console.log(`   - Contact ID: "${hubspotContactId}"`);
-    console.log(`   - Deal ID: "${hubspotDealId}"`);
-    console.log(`   - Cutoff date: ${ticketCutoffDate ? ticketCutoffDate.toISOString() : 'none (show all)'}`);
+    console.log(`🎫 Ticket fetch for user ${clientUser.id}`);
 
     if (!hubspotCompanyId && !hubspotContactId && !hubspotDealId) {
-      console.log(`🎫 No HubSpot IDs configured for ${clientUser.username || clientUser.email}`);
+      console.log(`🎫 No HubSpot IDs configured for user ${clientUser.id}`);
       return res.json({ tickets: [], message: 'No HubSpot account linked' });
     }
 
@@ -6231,7 +6227,7 @@ app.get('/api/client/hubspot/tickets', authenticateToken, async (req, res) => {
     // Sort by creation date, newest first
     mappedTickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    console.log(`🎫 Total tickets for ${clientUser.username || clientUser.email}: ${mappedHubSpot.length} HubSpot + ${mappedSubmitted.length} submitted = ${mappedTickets.length}`);
+    console.log(`🎫 Total tickets for user ${clientUser.id}: ${mappedHubSpot.length} HubSpot + ${mappedSubmitted.length} submitted = ${mappedTickets.length}`);
     res.json({ tickets: mappedTickets, count: mappedTickets.length });
   } catch (error) {
     console.error('Error fetching client tickets:', error);
@@ -6267,12 +6263,7 @@ app.get('/api/client/service-reports', authenticateToken, async (req, res) => {
     // Deduplicate
     const uniqueClientNames = [...new Set(clientNames)];
 
-    console.log(`📋 Service reports fetch for ${clientUser.email}:`);
-    console.log(`   - Company ID: "${hubspotCompanyId}"`);
-    console.log(`   - Slug: "${clientSlug}"`);
-    console.log(`   - Practice: "${practiceName}"`);
-    console.log(`   - Name: "${userName}"`);
-    console.log(`   - Match names: ${JSON.stringify(uniqueClientNames)}`);
+    console.log(`📋 Service reports fetch for user ${clientUser.id}`);
 
     // Fetch all service reports
     const serviceReports = (await db.get('service_reports')) || [];
@@ -6320,7 +6311,7 @@ app.get('/api/client/service-reports', authenticateToken, async (req, res) => {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
-    console.log(`📋 Found ${clientReports.length}/${serviceReports.length} service reports for ${clientUser.email} (slug-linked: ${slugLinkedReportIds.size})`);
+    console.log(`📋 Found ${clientReports.length}/${serviceReports.length} service reports for user ${clientUser.id} (slug-linked: ${slugLinkedReportIds.size})`);
     if (clientReports.length === 0 && serviceReports.length > 0) {
       console.log(`   ⚠️ No matches. Report facility names: ${serviceReports.slice(0, 5).map(r => `"${r.clientFacilityName}"`).join(', ')}`);
     }
@@ -6500,7 +6491,7 @@ app.put('/api/client/service-reports/:id/sign', authenticateToken, async (req, r
 
     const signedReport = serviceReports[reportIndex];
 
-    console.log(`✅ Client ${clientUser.name || clientUser.email} signed service report ${signedReport.id} from portal`);
+    console.log(`✅ Client user ${clientUser.id} signed service report ${signedReport.id} from portal`);
 
     // Log activity
     try {
@@ -12538,7 +12529,7 @@ app.post('/api/admin/bulk-password-reset', authenticateToken, requireAdmin, asyn
             const token = await createPasswordResetLink(fullUser, entry._plainPassword);
             await sendPasswordResetEmail(fullUser, token);
           } catch (err) {
-            console.error(`Bulk reset email error for ${entry.email}:`, err);
+            console.error(`Bulk reset email error for user ${entry.id || 'unknown'}:`, err);
           }
         }
       }
@@ -13516,7 +13507,7 @@ app.listen(PORT, () => {
         if (u.role === 'admin' && u.accountStatus === 'inactive') {
           u.accountStatus = 'active';
           reactivated = true;
-          console.log(`🔓 Reactivated locked-out admin account: ${u.email}`);
+          console.log(`🔓 Reactivated locked-out admin account: ${u.id}`);
         }
       });
       if (reactivated) {
