@@ -4,6 +4,12 @@
 
 ---
 
+### Version 3.22.10 - March 19, 2026
+
+#### Bug Fixes
+- Fix header to be hidden from visible UI
+
+
 ### Version 3.22.9 - March 11, 2026
 
 #### Changes
