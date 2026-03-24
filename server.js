@@ -13054,7 +13054,9 @@ app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdm
     const renderedBody = renderTemplate(template.body, vars);
     const renderedHtml = template.htmlBody
       ? renderTemplate(template.htmlBody, vars)
-      : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App', null, appBaseUrl);
+      : template.id === 'welcome_email'
+        ? renderTemplate(WELCOME_HTML_BODY, vars)
+        : buildHtmlEmail(renderedBody, null, appBaseUrl, 'View in App', null, appBaseUrl);
 
     res.json({ subject: renderedSubject, body: renderedBody, html: renderedHtml });
   } catch (error) {
@@ -13455,32 +13457,6 @@ app.post('/api/admin/email-templates/:id/reset', authenticateToken, requireAdmin
   }
 });
 
-// Preview a template with example variable values
-app.post('/api/admin/email-templates/:id/preview', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const templates = await getEmailTemplates();
-    const tpl = getTemplateById(templates, req.params.id);
-    if (!tpl) return res.status(404).json({ error: 'Template not found' });
-    // Build example vars from pool definitions
-    const vars = {};
-    getPoolVariablesForTemplate(tpl.id).forEach(v => { vars[v.key] = v.example || `[${v.label}]`; });
-
-    // Override URL vars with dynamic values so preview reflects the configured domain
-    const appBaseUrl = await getAppBaseUrl();
-    vars.appUrl   = appBaseUrl;
-    vars.loginUrl = `${appBaseUrl}/login`;
-
-    const subject = renderTemplate(tpl.subject, vars);
-    const body = renderTemplate(tpl.body, vars);
-    const htmlSrc = tpl.id === 'welcome_email'
-      ? renderTemplate(WELCOME_HTML_BODY, vars)
-      : buildHtmlEmail(body, tpl.htmlBody ? renderTemplate(tpl.htmlBody, vars) : null, appBaseUrl, 'View in App', null, appBaseUrl);
-    res.json({ subject, body, html: htmlSrc });
-  } catch (error) {
-    console.error('Preview email template error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // Legacy root-level route - redirect old project slugs to /launch
 app.get('/:slug', async (req, res, next) => {
