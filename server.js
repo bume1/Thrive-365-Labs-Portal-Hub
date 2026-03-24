@@ -763,6 +763,21 @@ function resolveInventoryVars(client, daysSince, appBaseUrl) {
   };
 }
 
+// Returns the correct project URL for a given recipient based on their role:
+// - Client users → /portal/{userSlug}
+// - Staff / Admin → /launch/{projectSlug}-internal
+// Falls back to the public launch board if neither condition is met.
+function getProjectLinkForUser(project, user, appBaseUrl) {
+  if (!project.clientLinkSlug) return appBaseUrl;
+  if (user && user.role === config.ROLES.CLIENT && user.slug) {
+    return `${appBaseUrl}/portal/${user.slug}`;
+  }
+  if (user && (user.role === config.ROLES.ADMIN || user.role === config.ROLES.USER)) {
+    return `${appBaseUrl}/launch/${project.clientLinkSlug}-internal`;
+  }
+  return `${appBaseUrl}/launch/${project.clientLinkSlug}`;
+}
+
 // Build a full variable map for a template from its pools and entity data
 function buildTemplateVars(pools, recipientUser, appBaseUrl) {
   let vars = {};
@@ -1265,7 +1280,7 @@ const scanAndQueueNotifications = async () => {
               const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
               for (const admin of admins) {
                 const escVars = buildTemplateVars({ task: { ...taskVars, ownerName: owner.name }, project: projVars }, admin, appBaseUrl);
-                await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, task.id?.toString(), 'task');
+                await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', getProjectLinkForUser(project, admin, appBaseUrl), task.id?.toString(), 'task');
               }
             }
           }
@@ -1296,7 +1311,7 @@ const scanAndQueueNotifications = async () => {
                 const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
                 for (const admin of admins) {
                   const escVars = buildTemplateVars({ task: { ...stVars, ownerName: stOwner.name }, project: projVars }, admin, appBaseUrl);
-                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, stEntityId, 'subtask');
+                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', getProjectLinkForUser(project, admin, appBaseUrl), stEntityId, 'subtask');
                 }
               }
             }
@@ -1360,7 +1375,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const client of projectClients) {
               const allVars = buildTemplateVars({ project: projVars }, client, appBaseUrl);
-              await renderAndQueue('milestone_reached', client, allVars, 'View Progress', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('milestone_reached', client, allVars, 'View Progress', getProjectLinkForUser(project, client, appBaseUrl), project.id, 'project');
             }
 
             // Update project milestone tracker
@@ -1389,7 +1404,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const user of [...projectClients, ...teamMembers]) {
               const allVars = buildTemplateVars({ project: projVars }, user, appBaseUrl);
-              await renderAndQueue('golive_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('golive_reminder', user, allVars, 'View Project', getProjectLinkForUser(project, user, appBaseUrl), project.id, 'project');
             }
           }
         }
