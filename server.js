@@ -452,9 +452,9 @@ const cancelProjectNotifications = async (projectId, taskIds) => {
 
 // Base HTML email wrapper used when a template has no custom htmlBody
 const BASE_HTML_EMAIL_WRAPPER = `
-<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -466,9 +466,9 @@ const BASE_HTML_EMAIL_WRAPPER = `
 </div>`;
 
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
-const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -688,11 +688,12 @@ function resolveServiceReportVars(report, appBaseUrl) {
   };
 }
 
-function resolveTaskVars(task, project, appBaseUrl) {
+function resolveTaskVars(task, project, appBaseUrl, ownerUser) {
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
   const now = new Date();
   const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
   const owner = task.owner || '';
+  const isClient = ownerUser && ownerUser.role === config.ROLES.CLIENT && ownerUser.slug;
   return {
     taskTitle: task.taskTitle || '',
     phase: task.phase || '',
@@ -703,16 +704,19 @@ function resolveTaskVars(task, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
+      ? (isClient
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
       : appBaseUrl
   };
 }
 
-function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
+function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl, ownerUser) {
   const dueDate = subtask.dueDate ? new Date(subtask.dueDate) : null;
   const now = new Date();
   const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
   const owner = subtask.owner || '';
+  const isClient = ownerUser && ownerUser.role === config.ROLES.CLIENT && ownerUser.slug;
   return {
     taskTitle: subtask.title || '',
     subtaskTitle: subtask.title || '',
@@ -725,7 +729,9 @@ function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`
+      ? (isClient
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${parentTask.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`)
       : appBaseUrl
   };
 }
@@ -755,6 +761,21 @@ function resolveInventoryVars(client, daysSince, appBaseUrl) {
     daysSince: String(daysSince),
     inventoryLink: client.slug ? `${appBaseUrl}/portal/${client.slug}` : appBaseUrl
   };
+}
+
+// Returns the correct project URL for a given recipient based on their role:
+// - Client users → /portal/{userSlug}
+// - Staff / Admin → /launch/{projectSlug}-internal
+// Falls back to the public launch board if neither condition is met.
+function getProjectLinkForUser(project, user, appBaseUrl) {
+  if (!project.clientLinkSlug) return appBaseUrl;
+  if (user && user.role === config.ROLES.CLIENT && user.slug) {
+    return `${appBaseUrl}/portal/${user.slug}`;
+  }
+  if (user && (user.role === config.ROLES.ADMIN || user.role === config.ROLES.USER)) {
+    return `${appBaseUrl}/launch/${project.clientLinkSlug}-internal`;
+  }
+  return `${appBaseUrl}/launch/${project.clientLinkSlug}`;
 }
 
 // Build a full variable map for a template from its pools and entity data
@@ -958,9 +979,9 @@ const DEFAULT_EMAIL_TEMPLATES = [
     category: 'announcement',
     subject: '{{priorityTag}}New Announcement: {{title}}',
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
-    htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+    htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
@@ -1239,7 +1260,7 @@ const scanAndQueueNotifications = async () => {
           const owner = users.find(u => u.email === task.owner);
           if (!owner || owner.emailUnsubscribed) continue;
 
-          const taskVars = resolveTaskVars(task, project, appBaseUrl);
+          const taskVars = resolveTaskVars(task, project, appBaseUrl, owner);
           const ctaUrl = taskVars.taskLink;
 
           // Approaching deadline
@@ -1259,7 +1280,7 @@ const scanAndQueueNotifications = async () => {
               const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
               for (const admin of admins) {
                 const escVars = buildTemplateVars({ task: { ...taskVars, ownerName: owner.name }, project: projVars }, admin, appBaseUrl);
-                await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, task.id?.toString(), 'task');
+                await renderAndQueue('task_overdue_escalation', admin, escVars, 'View Project', getProjectLinkForUser(project, admin, appBaseUrl), task.id?.toString(), 'task');
               }
             }
           }
@@ -1272,7 +1293,7 @@ const scanAndQueueNotifications = async () => {
             const stOwner = users.find(u => u.email === subtask.owner);
             if (!stOwner || stOwner.emailUnsubscribed) continue;
 
-            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl);
+            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl, stOwner);
             const stCtaUrl = stVars.taskLink;
             const stEntityId = `${task.id}-${subtask.id}`;
 
@@ -1290,7 +1311,7 @@ const scanAndQueueNotifications = async () => {
                 const admins = users.filter(u => u.role === config.ROLES.ADMIN && u.email && u.accountStatus !== 'inactive' && !u.emailUnsubscribed);
                 for (const admin of admins) {
                   const escVars = buildTemplateVars({ task: { ...stVars, ownerName: stOwner.name }, project: projVars }, admin, appBaseUrl);
-                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', projVars.projectLink, stEntityId, 'subtask');
+                  await renderAndQueue('subtask_overdue_escalation', admin, escVars, 'View Project', getProjectLinkForUser(project, admin, appBaseUrl), stEntityId, 'subtask');
                 }
               }
             }
@@ -1354,7 +1375,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const client of projectClients) {
               const allVars = buildTemplateVars({ project: projVars }, client, appBaseUrl);
-              await renderAndQueue('milestone_reached', client, allVars, 'View Progress', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('milestone_reached', client, allVars, 'View Progress', getProjectLinkForUser(project, client, appBaseUrl), project.id, 'project');
             }
 
             // Update project milestone tracker
@@ -1383,7 +1404,7 @@ const scanAndQueueNotifications = async () => {
             );
             for (const user of [...projectClients, ...teamMembers]) {
               const allVars = buildTemplateVars({ project: projVars }, user, appBaseUrl);
-              await renderAndQueue('golive_reminder', user, allVars, 'View Project', projVars.projectLink, project.id, 'project');
+              await renderAndQueue('golive_reminder', user, allVars, 'View Project', getProjectLinkForUser(project, user, appBaseUrl), project.id, 'project');
             }
           }
         }
@@ -2456,12 +2477,10 @@ app.post('/api/auth/login', async (req, res) => {
     const users = await getUsers();
     const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (!user) {
-      console.log('Login failed: User not found for email:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      console.log('Login failed: Password mismatch for:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     // Block inactive accounts from logging in
@@ -2606,7 +2625,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
     await db.set('password_reset_requests', resetRequests);
     
-    console.log(`Password reset requested for ${email} - Admin action required`);
+    console.log('Password reset requested — admin action required');
     res.json({ message: 'Your request has been submitted. An administrator will reach out to you shortly to help reset your password.' });
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -9493,7 +9512,6 @@ app.put('/api/service-reports/:id', authenticateToken, requireServiceAccess, asy
     const isAssigned = String(existingReport.assignedToId || '') === String(req.user.id);
     const isManagerUser = req.user.isManager;
     if (req.user.role !== config.ROLES.ADMIN && !isManagerUser && !isTechnician && !isAssigned) {
-      console.log(`Edit authorization failed: technicianId="${existingReport.technicianId}" and assignedToId="${existingReport.assignedToId}" don't match userId="${req.user.id}"`);
       return res.status(403).json({ error: 'Not authorized to edit this report' });
     }
 
@@ -12455,23 +12473,24 @@ async function createPasswordResetLink(user, plainPassword) {
 
 // Send the password reset email with the secure link
 async function sendPasswordResetEmail(user, token) {
-  const resetUrl = `https://thrive365labs.live/password-reset-${token}`;
-  const htmlBody = `
-    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: #045E9F; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">Thrive 365 Labs</h1>
-      </div>
-      <div style="background: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="color: #374151; font-size: 16px; margin-top: 0;">Hi ${user.name},</p>
-        <p style="color: #374151; font-size: 16px;">Your password has been reset by an administrator. Click the button below to view your temporary credentials.</p>
-        <p style="color: #374151; font-size: 16px;">You will be required to create a new password when you log in.</p>
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${resetUrl}" style="background: #045E9F; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-block;">View My Temporary Password</a>
-        </div>
-        <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your administrator immediately.</p>
-      </div>
-    </div>`;
-  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to view your temporary credentials and log in:\n${resetUrl}\n\nThis link expires in 24 hours.`;
+  const appBaseUrl = await getAppBaseUrl();
+  const resetUrl = `${appBaseUrl}/password-reset-${token}`;
+  const htmlBody = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="${appBaseUrl}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
+  </div>
+  <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Password Reset</h2>
+    <p style="color: #374151; line-height: 1.7; font-size: 15px;">Hi ${user.name},</p>
+    <p style="color: #374151; line-height: 1.7; font-size: 15px;">Your password has been reset by an administrator. Click the button below to set a new password and access your account.</p>
+    <p style="margin-top: 20px;">
+      <a href="${resetUrl}" style="display: inline-block; background: #045E9F; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Set New Password</a>
+    </p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0 16px;" />
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your Thrive 365 Labs administrator.</p>
+  </div>
+</div>`;
+  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to set a new password and access your account:\n${resetUrl}\n\nThis link expires in 24 hours.`;
   return sendEmail(user.email, 'Your Thrive 365 Labs Password Has Been Reset', plainText, { htmlBody });
 }
 
