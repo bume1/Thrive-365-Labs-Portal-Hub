@@ -3452,6 +3452,12 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   const [newNote, setNewNote] = useState('');
   const [editingNote, setEditingNote] = useState(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [mentionSuggestions, setMentionSuggestions] = useState([]);
+  const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
+  const noteInputRef = React.useRef(null);
   const [uploadingFile, setUploadingFile] = useState(null);
   const [syncingToHubSpot, setSyncingToHubSpot] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
@@ -4212,6 +4218,108 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
     } catch (err) {
       console.error('Failed to delete note:', err);
     }
+  };
+
+  // ---- @Mention helpers ----
+  const handleNoteInputChange = (e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setNewNote(value);
+
+    // Detect if we're in a mention context: find last '@' before cursor that isn't inside a completed mention
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const lastAtIdx = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIdx >= 0) {
+      // Check this @ isn't part of a completed mention @[...](...)
+      const beforeAt = value.slice(0, lastAtIdx);
+      const afterAt = value.slice(lastAtIdx);
+      const isCompletedMention = /^@\[[^\]]+\]\([^)]+\)/.test(afterAt);
+
+      if (!isCompletedMention) {
+        const filterText = textBeforeCursor.slice(lastAtIdx + 1).toLowerCase();
+        // Only show dropdown if no space more than 2 words deep (reasonable name length)
+        const words = filterText.split(/\s+/);
+        if (words.length <= 3) {
+          const filtered = teamMembers.filter(m =>
+            m.name.toLowerCase().includes(filterText) ||
+            m.email.toLowerCase().includes(filterText)
+          ).slice(0, 6);
+          setMentionFilter(filterText);
+          setMentionStartIndex(lastAtIdx);
+          setMentionSuggestions(filtered);
+          setShowMentionDropdown(filtered.length > 0);
+          setSelectedMentionIdx(0);
+          return;
+        }
+      }
+    }
+    setShowMentionDropdown(false);
+  };
+
+  const insertMention = (member) => {
+    const before = newNote.slice(0, mentionStartIndex);
+    const after = newNote.slice(mentionStartIndex + 1 + mentionFilter.length);
+    const mentionText = `@[${member.name}](${member.email}) `;
+    const updated = before + mentionText + after;
+    setNewNote(updated);
+    setShowMentionDropdown(false);
+    setMentionFilter('');
+    setMentionStartIndex(-1);
+    // Refocus the input
+    setTimeout(() => {
+      if (noteInputRef.current) {
+        noteInputRef.current.focus();
+        const pos = before.length + mentionText.length;
+        noteInputRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const handleNoteKeyDown = (e, taskId) => {
+    if (showMentionDropdown && mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMentionIdx(prev => Math.min(prev + 1, mentionSuggestions.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMentionIdx(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionSuggestions[selectedMentionIdx]);
+      } else if (e.key === 'Escape') {
+        setShowMentionDropdown(false);
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddNote(taskId);
+    }
+  };
+
+  // Render note content with styled @mentions
+  const renderNoteContent = (content) => {
+    if (!content) return null;
+    const parts = [];
+    let lastIndex = 0;
+    const regex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.slice(lastIndex, match.index));
+      }
+      parts.push(
+        React.createElement('span', {
+          key: match.index,
+          className: 'inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800',
+          title: match[2]
+        }, '@' + match[1])
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+    return parts.length > 0 ? React.createElement(React.Fragment, null, ...parts) : content;
   };
 
   const handleUploadFile = async (taskId, file) => {
@@ -5877,7 +5985,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                             </div>
                                           ) : (
                                             <>
-                                              <p className="text-gray-800">{note.content}</p>
+                                              <p className="text-gray-800">{renderNoteContent(note.content)}</p>
                                               <div className="flex justify-between items-center mt-1">
                                                 <p className="text-xs text-gray-400">
                                                   {note.author} - {new Date(note.createdAt).toLocaleString()}
@@ -5907,19 +6015,48 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                     )}
                                   </div>
                                   {canEdit && (
-                                    <div className="flex gap-2">
-                                      <input
-                                        value={newNote}
-                                        onChange={(e) => setNewNote(e.target.value)}
-                                        placeholder="Add a status update..."
-                                        className="flex-1 px-3 py-2 border rounded-md text-sm"
-                                      />
-                                      <button
-                                        onClick={() => handleAddNote(task.id)}
-                                        className="px-3 py-2 bg-gradient-to-r from-primary to-accent text-white rounded-md text-sm hover:opacity-90"
-                                      >
-                                        Add
-                                      </button>
+                                    <div className="relative">
+                                      <div className="flex gap-2">
+                                        <input
+                                          ref={noteInputRef}
+                                          value={newNote}
+                                          onChange={handleNoteInputChange}
+                                          onKeyDown={(e) => handleNoteKeyDown(e, task.id)}
+                                          onBlur={() => setTimeout(() => setShowMentionDropdown(false), 200)}
+                                          placeholder="Add a status update... Use @ to mention someone"
+                                          className="flex-1 px-3 py-2 border rounded-md text-sm"
+                                        />
+                                        <button
+                                          onClick={() => handleAddNote(task.id)}
+                                          className="px-3 py-2 bg-gradient-to-r from-primary to-accent text-white rounded-md text-sm hover:opacity-90"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
+                                      {showMentionDropdown && expandedTaskId === task.id && (
+                                        <div className="absolute bottom-full left-0 mb-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                          <div className="px-3 py-1.5 text-xs text-gray-400 border-b">Mention a team member</div>
+                                          {mentionSuggestions.map((member, idx) => (
+                                            <div
+                                              key={member.email}
+                                              className={`px-3 py-2 cursor-pointer flex items-center gap-2 text-sm ${idx === selectedMentionIdx ? 'bg-blue-50 text-blue-900' : 'hover:bg-gray-50'}`}
+                                              onMouseDown={(e) => { e.preventDefault(); insertMention(member); }}
+                                              onMouseEnter={() => setSelectedMentionIdx(idx)}
+                                            >
+                                              <div className="w-6 h-6 rounded-full bg-gradient-to-r from-primary to-accent text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                                {member.name.charAt(0).toUpperCase()}
+                                              </div>
+                                              <div className="min-w-0">
+                                                <div className="font-medium truncate">{member.name}</div>
+                                                <div className="text-xs text-gray-400 truncate">{member.email}</div>
+                                              </div>
+                                              {member.role === 'client' && (
+                                                <span className="ml-auto text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded flex-shrink-0">Client</span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   {/* Files Section */}
@@ -6487,7 +6624,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                           </div>
                         ) : (
                           <div className="bg-white rounded p-3 border border-gray-100 mb-2">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{renderNoteContent(note.content)}</p>
                           </div>
                         )}
                         <div className="flex items-center justify-between text-xs text-gray-500">

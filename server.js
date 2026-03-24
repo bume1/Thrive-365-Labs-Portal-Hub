@@ -513,6 +513,62 @@ function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl, baseUr
   return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock, appUrl: baseUrl || 'https://portal.thrive365labs.com' });
 }
 
+// ---- @Mention notification email builder ----
+function buildMentionNotificationHtml(authorName, recipientName, noteContent, task, project, baseUrl) {
+  const appUrl = baseUrl || 'https://portal.thrive365labs.com';
+  const taskName = task.taskTitle || task.clientFacingName || 'Untitled Task';
+  const projectName = project?.clientName || project?.name || 'Unknown Project';
+  const phase = task.phase || 'N/A';
+
+  return `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="${appUrl}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
+  </div>
+  <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="color: #00205A; margin-top: 0; font-size: 18px;">${authorName} mentioned you in a note</h2>
+    <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 16px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="color: #64748b; padding: 4px 0; width: 100px; font-weight: 500;">Project</td>
+          <td style="color: #0f172a; padding: 4px 0; font-weight: 600;">${projectName}</td>
+        </tr>
+        <tr>
+          <td style="color: #64748b; padding: 4px 0; font-weight: 500;">Task</td>
+          <td style="color: #0f172a; padding: 4px 0; font-weight: 600;">${taskName}</td>
+        </tr>
+        <tr>
+          <td style="color: #64748b; padding: 4px 0; font-weight: 500;">Phase</td>
+          <td style="color: #0f172a; padding: 4px 0;">${phase}</td>
+        </tr>
+      </table>
+    </div>
+    <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: 0 8px 8px 0;">
+      <p style="color: #92400e; font-size: 12px; margin: 0 0 4px; font-weight: 600; text-transform: uppercase;">Note</p>
+      <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0; white-space: pre-wrap; word-break: break-word;">${noteContent}</p>
+    </div>
+    <p style="color: #6b7280; font-size: 13px; margin-top: 12px;">— Posted by ${authorName}</p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0 16px;" />
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">You are receiving this because you were mentioned in a note on Thrive 365 Labs.</p>
+  </div>
+</div>`;
+}
+
+// Parse @mention markup from note content: @[Name](email) → Set of emails
+function parseMentions(content) {
+  const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  const mentions = new Map();
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    mentions.set(match[2], match[1]); // email → name
+  }
+  return mentions;
+}
+
+// Strip mention markup for display: @[Name](email) → @Name
+function stripMentionMarkup(content) {
+  return content.replace(/@\[([^\]]+)\]\(([^)]+)\)/g, '@$1');
+}
+
 // ============================================================
 // VARIABLE POOLS — Grouped sets of template variables by domain
 // ============================================================
@@ -3564,13 +3620,14 @@ app.post('/api/projects/:projectId/tasks/:taskId/notes', authenticateToken, asyn
     // Sync note to HubSpot (async, non-blocking) and store HubSpot ID
     const projects = await db.get('projects') || [];
     const project = projects.find(p => p.id === projectId);
+    const displayContent = stripMentionMarkup(content);
     if (project && project.hubspotRecordId && hubspot.isValidRecordId(project.hubspotRecordId)) {
       const task = tasks[idx];
       hubspot.syncTaskNoteToRecord(project.hubspotRecordId, {
         taskTitle: task.taskTitle || task.clientFacingName || 'Unknown Task',
         phase: task.phase || 'N/A',
         stage: task.stage || 'N/A',
-        noteContent: content,
+        noteContent: displayContent,
         author: req.user.name,
         timestamp: note.createdAt,
         projectName: project.clientName || project.name || 'Unknown Project'
@@ -3590,7 +3647,44 @@ app.post('/api/projects/:projectId/tasks/:taskId/notes', authenticateToken, asyn
         }
       }).catch(err => console.error('HubSpot note sync failed:', err.message));
     }
-    
+
+    // Parse @mentions and queue email notifications (async, non-blocking)
+    const mentions = parseMentions(content);
+    if (mentions.size > 0) {
+      (async () => {
+        try {
+          const users = await getUsers();
+          const task = tasks[idx];
+          for (const [email, name] of mentions) {
+            const mentionedUser = users.find(u => u.email === email);
+            if (!mentionedUser) continue;
+            if (mentionedUser.emailUnsubscribed) continue;
+            if (mentionedUser.id === req.user.id) continue; // don't notify self
+
+            await queueNotification(
+              'note_mention',
+              mentionedUser.id,
+              mentionedUser.email,
+              mentionedUser.name,
+              {
+                subject: `${req.user.name} mentioned you in a note`,
+                body: `${req.user.name} mentioned you in a note on task "${task.taskTitle || task.clientFacingName || 'Untitled'}" for project "${project?.clientName || project?.name || 'Unknown'}":\n\n"${displayContent}"`,
+                htmlBody: buildMentionNotificationHtml(req.user.name, mentionedUser.name, displayContent, task, project)
+              },
+              {
+                relatedEntityId: note.id,
+                relatedEntityType: 'note',
+                relatedProjectId: projectId,
+                createdBy: req.user.id
+              }
+            );
+          }
+        } catch (err) {
+          console.error('Mention notification failed:', err.message);
+        }
+      })();
+    }
+
     res.json(note);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -3618,16 +3712,19 @@ app.put('/api/projects/:projectId/tasks/:taskId/notes/:noteId', authenticateToke
     if (noteIdx === -1) return res.status(404).json({ error: 'Note not found' });
     
     const note = tasks[taskIdx].notes[noteIdx];
-    
+    const oldContent = note.content;
+
     // Only the author or an admin can edit the note
     if (note.authorId !== req.user.id && req.user.role !== config.ROLES.ADMIN) {
       return res.status(403).json({ error: 'You can only edit your own notes' });
     }
-    
+
     tasks[taskIdx].notes[noteIdx].content = content;
     tasks[taskIdx].notes[noteIdx].editedAt = new Date().toISOString();
     await db.set(`tasks_${projectId}`, tasks);
-    
+
+    const displayContent = stripMentionMarkup(content);
+
     // Sync updated note to HubSpot if it has a HubSpot ID
     const existingNoteId = tasks[taskIdx].notes[noteIdx].hubspotNoteId;
     if (existingNoteId) {
@@ -3639,14 +3736,58 @@ app.put('/api/projects/:projectId/tasks/:taskId/notes/:noteId', authenticateToke
           taskTitle: task.taskTitle || task.clientFacingName || 'Unknown Task',
           phase: task.phase || 'N/A',
           stage: task.stage || 'N/A',
-          noteContent: content,
+          noteContent: displayContent,
           author: note.author || req.user.name,
           timestamp: note.createdAt,
           projectName: project.clientName || project.name || 'Unknown Project'
         }, existingNoteId).catch(err => console.error('HubSpot note update failed:', err.message));
       }
     }
-    
+
+    // Notify newly added @mentions (not in original content)
+    const oldMentions = parseMentions(oldContent);
+    const newMentions = parseMentions(content);
+    const freshMentions = new Map();
+    for (const [email, name] of newMentions) {
+      if (!oldMentions.has(email)) freshMentions.set(email, name);
+    }
+    if (freshMentions.size > 0) {
+      (async () => {
+        try {
+          const users = await getUsers();
+          const projects = await db.get('projects') || [];
+          const project = projects.find(p => p.id === projectId);
+          const task = tasks[taskIdx];
+          for (const [email] of freshMentions) {
+            const mentionedUser = users.find(u => u.email === email);
+            if (!mentionedUser) continue;
+            if (mentionedUser.emailUnsubscribed) continue;
+            if (mentionedUser.id === req.user.id) continue;
+
+            await queueNotification(
+              'note_mention',
+              mentionedUser.id,
+              mentionedUser.email,
+              mentionedUser.name,
+              {
+                subject: `${req.user.name} mentioned you in a note`,
+                body: `${req.user.name} mentioned you in a note on task "${task.taskTitle || task.clientFacingName || 'Untitled'}" for project "${project?.clientName || project?.name || 'Unknown'}":\n\n"${displayContent}"`,
+                htmlBody: buildMentionNotificationHtml(req.user.name, mentionedUser.name, displayContent, task, project)
+              },
+              {
+                relatedEntityId: noteId,
+                relatedEntityType: 'note',
+                relatedProjectId: projectId,
+                createdBy: req.user.id
+              }
+            );
+          }
+        } catch (err) {
+          console.error('Mention notification (edit) failed:', err.message);
+        }
+      })();
+    }
+
     res.json(tasks[taskIdx].notes[noteIdx]);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });

@@ -167,7 +167,8 @@ const NOTIFICATION_COOLDOWN_HOURS = Object.freeze({
   service_report_signature:   20,   // at most once per day per report
   service_report_review:      20,   // at most once per day per report
   golive_reminder:            20,   // at most once per day per project
-  milestone_reached:          9999  // effectively one-time (also guarded by lastMilestoneNotified)
+  milestone_reached:          9999, // effectively one-time (also guarded by lastMilestoneNotified)
+  note_mention:               1     // at most once per hour per note mention
 });
 
 // ---- Default Admin (initial setup only) ----
