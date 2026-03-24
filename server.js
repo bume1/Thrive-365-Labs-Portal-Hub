@@ -12455,23 +12455,24 @@ async function createPasswordResetLink(user, plainPassword) {
 
 // Send the password reset email with the secure link
 async function sendPasswordResetEmail(user, token) {
-  const resetUrl = `https://thrive365labs.live/password-reset-${token}`;
-  const htmlBody = `
-    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: #045E9F; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">Thrive 365 Labs</h1>
-      </div>
-      <div style="background: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="color: #374151; font-size: 16px; margin-top: 0;">Hi ${user.name},</p>
-        <p style="color: #374151; font-size: 16px;">Your password has been reset by an administrator. Click the button below to view your temporary credentials.</p>
-        <p style="color: #374151; font-size: 16px;">You will be required to create a new password when you log in.</p>
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${resetUrl}" style="background: #045E9F; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-block;">View My Temporary Password</a>
-        </div>
-        <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your administrator immediately.</p>
-      </div>
-    </div>`;
-  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to view your temporary credentials and log in:\n${resetUrl}\n\nThis link expires in 24 hours.`;
+  const appBaseUrl = await getAppBaseUrl();
+  const resetUrl = `${appBaseUrl}/password-reset-${token}`;
+  const htmlBody = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="${appBaseUrl}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+  </div>
+  <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Password Reset</h2>
+    <p style="color: #374151; line-height: 1.7; font-size: 15px;">Hi ${user.name},</p>
+    <p style="color: #374151; line-height: 1.7; font-size: 15px;">Your password has been reset by an administrator. Click the button below to set a new password and access your account.</p>
+    <p style="margin-top: 20px;">
+      <a href="${resetUrl}" style="display: inline-block; background: #045E9F; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Set New Password</a>
+    </p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0 16px;" />
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">This link expires in 24 hours. If you did not expect this reset, please contact your Thrive 365 Labs administrator.</p>
+  </div>
+</div>`;
+  const plainText = `Hi ${user.name},\n\nYour password has been reset by an administrator.\n\nClick the link below to set a new password and access your account:\n${resetUrl}\n\nThis link expires in 24 hours.`;
   return sendEmail(user.email, 'Your Thrive 365 Labs Password Has Been Reset', plainText, { htmlBody });
 }
 
