@@ -1320,7 +1320,7 @@
                       <select value={formData.role === 'user' && formData.isManager ? 'manager' : formData.role} onChange={(e) => {
                           const val = e.target.value;
                           if (val === 'manager') {
-                            setFormData({ ...formData, role: 'user', isManager: true });
+                            setFormData({ ...formData, role: 'user', isManager: true, hasAdminHubAccess: true, hasClientPortalAdminAccess: true });
                           } else {
                             setFormData({ ...formData, role: val, isManager: false });
                           }
@@ -1336,7 +1336,7 @@
                   </div>
 
                   {/* Permission Flags (for team members) */}
-                  {(formData.role === 'user' || formData.role === 'admin') && (
+                  {formData.role === 'user' && (
                     <div className="border-t pt-4">
                       <h3 className="font-medium text-gray-800 mb-3">Access Permissions</h3>
 
@@ -1348,9 +1348,10 @@
                           <label htmlFor="serviceAccess" className="text-sm font-medium text-gray-700">Service Portal</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                          <input type="checkbox" id="adminHubAccess" checked={formData.hasAdminHubAccess}
+                          <input type="checkbox" id="adminHubAccess" checked={formData.hasAdminHubAccess || formData.isManager}
+                            disabled={formData.isManager}
                             onChange={(e) => setFormData({ ...formData, hasAdminHubAccess: e.target.checked })}
-                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            className={`w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${formData.isManager ? 'opacity-60 cursor-not-allowed' : ''}`} />
                           <label htmlFor="adminHubAccess" className="text-sm font-medium text-gray-700">Admin Hub</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
@@ -1360,13 +1361,16 @@
                           <label htmlFor="implAccess" className="text-sm font-medium text-gray-700">Implementations App</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
-                          <input type="checkbox" id="clientPortalAdmin" checked={formData.hasClientPortalAdminAccess}
+                          <input type="checkbox" id="clientPortalAdmin" checked={formData.hasClientPortalAdminAccess || formData.isManager}
+                            disabled={formData.isManager}
                             onChange={(e) => setFormData({ ...formData, hasClientPortalAdminAccess: e.target.checked })}
-                            className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+                            className={`w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 ${formData.isManager ? 'opacity-60 cursor-not-allowed' : ''}`} />
                           <label htmlFor="clientPortalAdmin" className="text-sm font-medium text-gray-700">Client Portal Admin</label>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">Admins automatically have all permissions. Managers with Service Portal access can manage vendors and assignments.</p>
+                      <p className="text-xs text-gray-500 mt-2">{formData.isManager
+                        ? 'Managers automatically get Admin Hub and Client Portal Admin access. Check additional portals as needed.'
+                        : 'Users with assigned projects also get Implementations access automatically.'}</p>
                     </div>
                   )}
 
