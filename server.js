@@ -510,7 +510,7 @@ function buildHtmlEmail(body, htmlBody, ctaUrl, ctaLabel, unsubscribeUrl, baseUr
   const unsubscribeBlock = unsubscribeUrl
     ? `<p style="color: #9ca3af; font-size: 11px; margin: 6px 0 0;"><a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from these emails</a></p>`
     : '';
-  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock, appUrl: baseUrl || 'https://thrive365labs.live' });
+  return renderTemplate(BASE_HTML_EMAIL_WRAPPER, { content: body, ctaBlock, unsubscribeBlock, appUrl: baseUrl || 'https://portal.thrive365labs.com' });
 }
 
 // ============================================================
@@ -522,7 +522,7 @@ const VARIABLE_POOLS = {
     label: 'Account',
     variables: [
       { key: 'temporaryPassword', label: 'Temporary Password', example: 'Welcome2026!' },
-      { key: 'loginUrl', label: 'Login URL', example: 'https://thrive365labs.live/login' }
+      { key: 'loginUrl', label: 'Login URL', example: 'https://portal.thrive365labs.com/login' }
     ]
   },
   service_report: {
@@ -534,8 +534,8 @@ const VARIABLE_POOLS = {
       { key: 'serviceType', label: 'Service Type', example: 'Installation' },
       { key: 'reportStatus', label: 'Report Status', example: 'signature_needed' },
       { key: 'reportAge', label: 'Days Since Created', example: '5' },
-      { key: 'reportLink', label: 'Direct Report Link', example: 'https://thrive365labs.live/service-portal?report=abc-123' },
-      { key: 'portalLink', label: 'Client Portal Link', example: 'https://thrive365labs.live/portal/valley-medical' }
+      { key: 'reportLink', label: 'Direct Report Link', example: 'https://portal.thrive365labs.com/service-portal?report=abc-123' },
+      { key: 'portalLink', label: 'Client Portal Link', example: 'https://portal.thrive365labs.com/portal/valley-medical' }
     ]
   },
   task: {
@@ -547,7 +547,7 @@ const VARIABLE_POOLS = {
       { key: 'timeframe', label: 'Timeframe', example: 'in 3 days' },
       { key: 'daysOverdue', label: 'Days Overdue', example: '5' },
       { key: 'ownerName', label: 'Task Owner', example: 'Jane Doe' },
-      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' },
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://portal.thrive365labs.com/launch/valley-medical?task=42' },
       { key: 'subtaskTitle', label: 'Subtask Title', example: 'Order reagent kits' },
       { key: 'parentTaskTitle', label: 'Parent Task Title', example: 'Install AU480 Analyzer' }
     ]
@@ -561,7 +561,7 @@ const VARIABLE_POOLS = {
       { key: 'percentage', label: 'Completion %', example: '75' },
       { key: 'completedTasks', label: 'Completed Tasks', example: '76' },
       { key: 'totalTasks', label: 'Total Tasks', example: '102' },
-      { key: 'projectLink', label: 'Project Link', example: 'https://thrive365labs.live/launch/valley-medical' }
+      { key: 'projectLink', label: 'Project Link', example: 'https://portal.thrive365labs.com/launch/valley-medical' }
     ]
   },
   inventory: {
@@ -569,7 +569,7 @@ const VARIABLE_POOLS = {
     variables: [
       { key: 'practiceName', label: 'Practice Name', example: 'Valley Medical' },
       { key: 'daysSince', label: 'Days Since Last Submission', example: '10' },
-      { key: 'inventoryLink', label: 'Inventory Portal Link', example: 'https://thrive365labs.live/portal/valley-medical' }
+      { key: 'inventoryLink', label: 'Inventory Portal Link', example: 'https://portal.thrive365labs.com/portal/valley-medical' }
     ]
   },
   announcement: {
@@ -595,7 +595,7 @@ const VARIABLE_POOLS = {
   system: {
     label: 'System',
     variables: [
-      { key: 'appUrl', label: 'App Base URL', example: 'https://thrive365labs.live' },
+      { key: 'appUrl', label: 'App Base URL', example: 'https://portal.thrive365labs.com' },
       { key: 'currentDate', label: 'Current Date', example: '02/17/2026' },
       { key: 'companyName', label: 'Company Name', example: 'Thrive 365 Labs' }
     ]
@@ -658,7 +658,7 @@ function getPoolGroupsForTemplate(templateId) {
 async function getAppBaseUrl() {
   const domain = await db.get('client_portal_domain');
   if (domain) return `https://${domain}`;
-  return 'https://thrive365labs.live';
+  return 'https://portal.thrive365labs.com';
 }
 
 function resolveSystemVars(appBaseUrl) {
@@ -1024,7 +1024,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
       { key: 'taskName', label: 'Task Name', example: 'Install AU480 Analyzer' },
       { key: 'fileName', label: 'File Name', example: 'setup-guide.pdf' },
       { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
-      { key: 'portalLink', label: 'Portal Link', example: 'https://thrive365labs.live/portal/valley-medical#task-42' }
+      { key: 'portalLink', label: 'Portal Link', example: 'https://portal.thrive365labs.com/portal/valley-medical#task-42' }
     ],
     isDefault: true, updatedAt: null, updatedBy: null
   },
@@ -1091,7 +1091,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
       { key: 'projectName', label: 'Project Name', example: 'Valley Medical Launch' },
       { key: 'phase', label: 'Phase', example: 'Phase 2' },
       { key: 'dueDate', label: 'Due Date', example: '03/15/2026' },
-      { key: 'taskLink', label: 'Direct Task Link', example: 'https://thrive365labs.live/launch/valley-medical?task=42' }
+      { key: 'taskLink', label: 'Direct Task Link', example: 'https://portal.thrive365labs.com/launch/valley-medical?task=42' }
     ],
     isDefault: true, updatedAt: null, updatedBy: null
   }
