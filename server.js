@@ -452,9 +452,9 @@ const cancelProjectNotifications = async (projectId, taskIds) => {
 
 // Base HTML email wrapper used when a template has no custom htmlBody
 const BASE_HTML_EMAIL_WRAPPER = `
-<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <div style="color: #374151; line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;">{{content}}</div>
@@ -466,9 +466,9 @@ const BASE_HTML_EMAIL_WRAPPER = `
 </div>`;
 
 // Branded HTML for the welcome email (has credential table — not a standard wrapper)
-const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+const WELCOME_HTML_BODY = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Welcome to Thrive 365 Labs, {{recipientName}}!</h2>
@@ -688,11 +688,12 @@ function resolveServiceReportVars(report, appBaseUrl) {
   };
 }
 
-function resolveTaskVars(task, project, appBaseUrl) {
+function resolveTaskVars(task, project, appBaseUrl, ownerUser) {
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
   const now = new Date();
   const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
   const owner = task.owner || '';
+  const isClient = ownerUser && ownerUser.role === config.ROLES.CLIENT && ownerUser.slug;
   return {
     taskTitle: task.taskTitle || '',
     phase: task.phase || '',
@@ -703,16 +704,19 @@ function resolveTaskVars(task, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`
+      ? (isClient
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
       : appBaseUrl
   };
 }
 
-function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
+function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl, ownerUser) {
   const dueDate = subtask.dueDate ? new Date(subtask.dueDate) : null;
   const now = new Date();
   const daysUntilDue = dueDate ? Math.floor((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
   const owner = subtask.owner || '';
+  const isClient = ownerUser && ownerUser.role === config.ROLES.CLIENT && ownerUser.slug;
   return {
     taskTitle: subtask.title || '',
     subtaskTitle: subtask.title || '',
@@ -725,7 +729,9 @@ function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl) {
     daysOverdue: (daysUntilDue !== null && daysUntilDue < 0) ? String(Math.abs(daysUntilDue)) : '0',
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
-      ? `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`
+      ? (isClient
+          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${parentTask.id}`
+          : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`)
       : appBaseUrl
   };
 }
@@ -958,9 +964,9 @@ const DEFAULT_EMAIL_TEMPLATES = [
     category: 'announcement',
     subject: '{{priorityTag}}New Announcement: {{title}}',
     body: '{{priorityTag}}{{title}}\n\n{{content}}{{attachmentLine}}',
-    htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+    htmlBody: `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="{{appUrl}}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     {{priorityBanner}}
@@ -1239,7 +1245,7 @@ const scanAndQueueNotifications = async () => {
           const owner = users.find(u => u.email === task.owner);
           if (!owner || owner.emailUnsubscribed) continue;
 
-          const taskVars = resolveTaskVars(task, project, appBaseUrl);
+          const taskVars = resolveTaskVars(task, project, appBaseUrl, owner);
           const ctaUrl = taskVars.taskLink;
 
           // Approaching deadline
@@ -1272,7 +1278,7 @@ const scanAndQueueNotifications = async () => {
             const stOwner = users.find(u => u.email === subtask.owner);
             if (!stOwner || stOwner.emailUnsubscribed) continue;
 
-            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl);
+            const stVars = resolveSubtaskVars(subtask, task, project, appBaseUrl, stOwner);
             const stCtaUrl = stVars.taskLink;
             const stEntityId = `${task.id}-${subtask.id}`;
 
@@ -12454,9 +12460,9 @@ async function createPasswordResetLink(user, plainPassword) {
 async function sendPasswordResetEmail(user, token) {
   const appBaseUrl = await getAppBaseUrl();
   const resetUrl = `${appBaseUrl}/password-reset-${token}`;
-  const htmlBody = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc;">
-  <div style="background-color: #ffffff; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
-    <img src="${appBaseUrl}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto;" />
+  const htmlBody = `<div style="font-family: Inter, -apple-system, sans-serif; width: 100%; max-width: 600px; margin: 0 auto; background: #f8fafc; color-scheme: light;">
+  <div style="background-color: #ffffff !important; padding: 20px 16px 16px; border-radius: 8px 8px 0 0; text-align: center; border-bottom: 3px solid #045E9F;">
+    <img src="${appBaseUrl}/thrive365-logo-email.png" alt="Thrive 365 Labs" style="height: 44px; max-width: 220px; width: 100%; display: block; margin: 0 auto; background-color: #ffffff !important;" />
   </div>
   <div style="background: #ffffff; padding: 24px 16px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="color: #00205A; margin-top: 0; font-size: 20px;">Password Reset</h2>
