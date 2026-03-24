@@ -2456,12 +2456,10 @@ app.post('/api/auth/login', async (req, res) => {
     const users = await getUsers();
     const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (!user) {
-      console.log('Login failed: User not found for email:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      console.log('Login failed: Password mismatch for:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     // Block inactive accounts from logging in
@@ -2606,7 +2604,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
     await db.set('password_reset_requests', resetRequests);
     
-    console.log(`Password reset requested for ${email} - Admin action required`);
+    console.log('Password reset requested — admin action required');
     res.json({ message: 'Your request has been submitted. An administrator will reach out to you shortly to help reset your password.' });
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -9493,7 +9491,6 @@ app.put('/api/service-reports/:id', authenticateToken, requireServiceAccess, asy
     const isAssigned = String(existingReport.assignedToId || '') === String(req.user.id);
     const isManagerUser = req.user.isManager;
     if (req.user.role !== config.ROLES.ADMIN && !isManagerUser && !isTechnician && !isAssigned) {
-      console.log(`Edit authorization failed: technicianId="${existingReport.technicianId}" and assignedToId="${existingReport.assignedToId}" don't match userId="${req.user.id}"`);
       return res.status(403).json({ error: 'Not authorized to edit this report' });
     }
 
