@@ -3433,7 +3433,7 @@ const SoftPilotChecklist = ({ token, project, tasks, teamMembers, onClose, onSub
 };
 
 // ============== PROJECT TRACKER COMPONENT ==============
-const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, onBack, onLogout }) => {
+const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, onClearScrollToTask, onBack, onLogout }) => {
   const [project, setProject] = useState(initialProject);
   const [tasks, setTasks] = useState([]);
   const [viewMode, setViewMode] = useState('internal');
@@ -3598,6 +3598,8 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
             taskElement.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
           }, 3000);
         }
+        // Clear after handling so it doesn't re-trigger on task list re-renders
+        if (onClearScrollToTask) onClearScrollToTask();
       }, 300);
     }
   }, [scrollToTaskId, loading, tasks]);
@@ -8538,6 +8540,7 @@ const App = () => {
         user={user}
         project={selectedProject}
         scrollToTaskId={scrollToTaskId}
+        onClearScrollToTask={() => setScrollToTaskId(null)}
         onBack={handleBackToList}
         onLogout={handleLogout}
       />

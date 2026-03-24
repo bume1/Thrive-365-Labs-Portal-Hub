@@ -5900,7 +5900,10 @@
       };
 
       const initialRoute = getPageFromUrl();
-      const [activePage, setActivePage] = useState(initialRoute.page || 'home');
+      // Auto-navigate to milestones page when URL has a #task- hash anchor (from reminder emails)
+      const taskHash = window.location.hash;
+      const initialPage = (taskHash && taskHash.startsWith('#task-')) ? 'milestones' : (initialRoute.page || 'home');
+      const [activePage, setActivePage] = useState(initialPage);
       const [activeSubTab, setActiveSubTab] = useState(initialRoute.tab || null);
       const [data, setData] = useState(null);
       const [settings, setSettings] = useState(null);
