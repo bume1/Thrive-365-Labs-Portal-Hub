@@ -2051,7 +2051,7 @@ const canWriteProject = (user, projectId) => {
   if (user.role === config.ROLES.ADMIN) return true;
   if (!(user.assignedProjects || []).includes(projectId)) return false;
   const level = (user.projectAccessLevels || {})[projectId];
-  return level === 'write' || level === 'admin';
+  return level !== 'view';
 };
 
 // Generate a unique slug for client users
@@ -2217,15 +2217,6 @@ const requireAdminHubFullAccess = (req, res, next) => {
     return next();
   }
   return res.status(403).json({ error: 'Super Admin access required for this operation' });
-};
-
-// Require Implementations App access
-const requireImplementationsAccess = (req, res, next) => {
-  if (req.user.role === config.ROLES.ADMIN || req.user.hasImplementationsAccess ||
-      (req.user.assignedProjects && req.user.assignedProjects.length > 0)) {
-    return next();
-  }
-  return res.status(403).json({ error: 'Implementations App access required' });
 };
 
 // Require Client Portal Admin access (super admins, managers, or users with hasClientPortalAdminAccess)
@@ -11051,6 +11042,10 @@ app.get('/api/projects/:projectId/active-validations', authenticateToken, async 
     const project = projects.find(p => p.id === req.params.projectId);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (!canAccessProject(req.user, req.params.projectId)) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const [serviceReports, users] = await Promise.all([
