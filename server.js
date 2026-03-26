@@ -3966,8 +3966,14 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/projects', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/projects', authenticateToken, async (req, res) => {
   try {
+    // Super Admin or any Project Admin can create projects
+    const isSuperAdmin = req.user.role === config.ROLES.ADMIN;
+    const hasProjectAdminOnAny = Object.values(req.user.projectAccessLevels || {}).includes('admin');
+    if (!isSuperAdmin && !hasProjectAdminOnAny) {
+      return res.status(403).json({ error: 'Super Admin or Project Admin access required to create projects' });
+    }
     const { name, clientName, projectManager, hubspotRecordId, hubspotRecordType, hubspotDealStage, hubspotPipelineId, template } = req.body;
     if (!name || !clientName) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -4247,8 +4253,8 @@ app.put('/api/projects/:id', authenticateToken, async (req, res) => {
 
 app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== config.ROLES.ADMIN) {
-      return res.status(403).json({ error: 'Only admins can delete projects' });
+    if (!isProjectAdmin(req.user, req.params.id)) {
+      return res.status(403).json({ error: 'Project Admin or Super Admin access required to delete projects' });
     }
     
     const projects = await getProjects();
