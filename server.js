@@ -2054,6 +2054,12 @@ const canWriteProject = (user, projectId) => {
   return level !== 'view';
 };
 
+// Authorization helper: true if Super Admin OR has project-level admin access
+const isProjectAdmin = (user, projectId) => {
+  if (user.role === config.ROLES.ADMIN) return true;
+  return (user.projectAccessLevels || {})[projectId] === 'admin';
+};
+
 // Generate a unique slug for client users
 const generateClientUserSlug = async (practiceName) => {
   const users = await getUsers();
@@ -3709,14 +3715,14 @@ const ALLOWED_FILE_TYPES = [
   'text/csv'
 ];
 
-// Upload file to task (admin only)
-app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, requireAdmin, uploadLimiter, upload.single('file'), async (req, res) => {
+// Upload file to task (project admin or super admin)
+app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, uploadLimiter, upload.single('file'), async (req, res) => {
   try {
-    
+
     const { projectId, taskId } = req.params;
-    
-    if (!canAccessProject(req.user, projectId)) {
-      return res.status(403).json({ error: 'Access denied to this project' });
+
+    if (!isProjectAdmin(req.user, projectId)) {
+      return res.status(403).json({ error: 'Project Admin or Super Admin access required to upload files' });
     }
     
     if (!req.file) {
@@ -3820,14 +3826,14 @@ app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, requ
   }
 });
 
-// Delete file from task (admin only)
-app.delete('/api/projects/:projectId/tasks/:taskId/files/:fileId', authenticateToken, requireAdmin, async (req, res) => {
+// Delete file from task (project admin or super admin)
+app.delete('/api/projects/:projectId/tasks/:taskId/files/:fileId', authenticateToken, async (req, res) => {
   try {
-    
+
     const { projectId, taskId, fileId } = req.params;
-    
-    if (!canAccessProject(req.user, projectId)) {
-      return res.status(403).json({ error: 'Access denied to this project' });
+
+    if (!isProjectAdmin(req.user, projectId)) {
+      return res.status(403).json({ error: 'Project Admin or Super Admin access required to delete files' });
     }
     
     const tasks = await getRawTasks(projectId);
@@ -4271,11 +4277,10 @@ app.delete('/api/projects/:id', authenticateToken, async (req, res) => {
 });
 
 // Clone/Duplicate a project
-app.post('/api/projects/:id/clone', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/projects/:id/clone', authenticateToken, async (req, res) => {
   try {
-    // Check project access
-    if (!canAccessProject(req.user, req.params.id)) {
-      return res.status(403).json({ error: 'Access denied to this project' });
+    if (!isProjectAdmin(req.user, req.params.id)) {
+      return res.status(403).json({ error: 'Project Admin or Super Admin access required to clone' });
     }
     
     const projects = await getProjects();
@@ -4566,11 +4571,15 @@ app.delete('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (r
 });
 
 // Reorder task (move up or down within same stage)
-app.post('/api/projects/:projectId/tasks/:taskId/reorder', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/projects/:projectId/tasks/:taskId/reorder', authenticateToken, async (req, res) => {
   try {
     const { projectId, taskId } = req.params;
     const { direction } = req.body; // 'up' or 'down'
-    
+
+    if (!isProjectAdmin(req.user, projectId)) {
+      return res.status(403).json({ error: 'Project Admin or Super Admin access required to reorder tasks' });
+    }
+
     if (!direction || !['up', 'down'].includes(direction)) {
       return res.status(400).json({ error: 'Direction must be "up" or "down"' });
     }
