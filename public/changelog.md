@@ -4,6 +4,26 @@
 
 ---
 
+### Version 3.23.0 - March 26, 2026
+
+#### New Features
+- Add @mention notifications in task notes
+- Add one-time script to set client_portal_domain in Replit DB
+
+#### Bug Fixes
+- Fix task reminder links to route directly to the correct task view
+- Fix welcome email preview not matching the actual sent email
+- Fix login redirect: stuck on password reset page
+
+#### Improvements
+- Improve permission checkbox clarity in user management UI
+- Update domain from thrive365labs.live to portal.thrive365labs.com
+
+#### Changes
+- Expand manager permissions: add/edit any non-admin user, toggle account status
+- Give managers read-only access to User Management with client creation
+
+
 ### Version 3.22.12 - March 26, 2026
 
 #### Bug Fixes
