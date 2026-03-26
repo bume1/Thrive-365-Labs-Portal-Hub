@@ -761,7 +761,7 @@ function resolveTaskVars(task, project, appBaseUrl, ownerUser) {
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
       ? (isClient
-          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          ? `${appBaseUrl}/portal/${ownerUser.slug}/milestones#task-${task.id}`
           : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
       : appBaseUrl
   };
@@ -786,7 +786,7 @@ function resolveSubtaskVars(subtask, parentTask, project, appBaseUrl, ownerUser)
     ownerName: owner,
     taskLink: project && project.clientLinkSlug
       ? (isClient
-          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${parentTask.id}`
+          ? `${appBaseUrl}/portal/${ownerUser.slug}/milestones#task-${parentTask.id}`
           : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${parentTask.id}`)
       : appBaseUrl
   };
@@ -866,7 +866,7 @@ async function sendAssignmentNotification(ownerEmail, task, subtask, project, tr
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
     const taskLink = project && project.clientLinkSlug
       ? (ownerUser.role === 'client' && ownerUser.slug
-          ? `${appBaseUrl}/portal/${ownerUser.slug}#task-${task.id}`
+          ? `${appBaseUrl}/portal/${ownerUser.slug}/milestones#task-${task.id}`
           : `${appBaseUrl}/launch/${project.clientLinkSlug}-internal#task-${task.id}`)
       : appBaseUrl;
 
@@ -3910,13 +3910,12 @@ app.post('/api/projects/:projectId/tasks/:taskId/files', authenticateToken, requ
     if (tasks[taskIdx].showToClient) {
       try {
         const appBaseUrl = `${req.protocol}://${req.get('host')}`;
-        const slug = project.slug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const portalLink = `${appBaseUrl}/portal/${slug}#task-${taskId}`;
         const allUsers = await getUsers();
         const clientUsers = allUsers.filter(u => u.role === 'client' && u.assignedProjects && u.assignedProjects.includes(projectId));
         const templates = await getEmailTemplates();
         const tpl = getTemplateById(templates, 'task_attachment');
         for (const client of clientUsers) {
+          const portalLink = `${appBaseUrl}/portal/${client.slug}/milestones#task-${taskId}`;
           const vars = {
             taskName: tasks[taskIdx].taskTitle || tasks[taskIdx].clientName || tasks[taskIdx].name || 'Task',
             fileName: fileEntry.name,
