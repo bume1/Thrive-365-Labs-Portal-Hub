@@ -4,6 +4,17 @@
 
 ---
 
+### Version 3.22.12 - March 26, 2026
+
+#### Bug Fixes
+- Fix project-level email links routing for all user roles
+- Fix email logo dark mode + task reminder links for client users
+- Fix password reset email: dynamic URL and branded logo
+
+#### Changes
+- Remove debug console.logs that expose user emails
+
+
 ### Version 3.22.11 - March 20, 2026
 
 #### Changes
