@@ -87,12 +87,8 @@
         // Auto-redirect to login on auth failure (expired/invalid token)
         if (response.status === 401 || (response.status === 403 &&
             (errorData?.error === 'Invalid token' || errorData?.error === 'User not found'))) {
-          localStorage.removeItem('portal_token');
-          localStorage.removeItem('portal_user');
-          localStorage.removeItem('unified_token');
-          localStorage.removeItem('unified_user');
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('admin_user');
+          localStorage.clear();
+          sessionStorage.clear();
           window.location.href = '/login';
           throw new Error('Session expired. Redirecting to login...');
         }
@@ -508,12 +504,8 @@
               )}
               <button
                 onClick={() => {
-                  localStorage.removeItem('portal_token');
-                  localStorage.removeItem('portal_user');
-                  localStorage.removeItem('unified_token');
-                  localStorage.removeItem('unified_user');
-                  localStorage.removeItem('admin_token');
-                  localStorage.removeItem('admin_user');
+                  localStorage.clear();
+                  sessionStorage.clear();
                   window.location.href = '/login';
                 }}
                 className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"

@@ -123,10 +123,8 @@ const handleResponse = async (response) => {
       const isAuthError = response.status === 401 ||
         (response.status === 403 && await response.clone().json().then(d => d.error === 'Invalid token' || d.error === 'User not found').catch(() => false));
       if (isAuthError) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('unified_token');
-        localStorage.removeItem('unified_user');
+        localStorage.clear();
+        sessionStorage.clear();
         window.location.href = '/';
         throw new Error('Session expired. Redirecting to login...');
       }
@@ -8506,10 +8504,8 @@ const App = () => {
     setUser(null);
     setSelectedProject(null);
     setView('list');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('unified_token');
-    localStorage.removeItem('unified_user');
+    localStorage.clear();
+    sessionStorage.clear();
     window.location.href = '/login';
   };
 
