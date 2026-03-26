@@ -4,6 +4,16 @@
 
 ---
 
+### Version 3.24.0 - March 26, 2026
+
+#### New Features
+- Fix broken project access levels and close security hole in implementations app
+
+#### Changes
+- Allow Project Admins to create and delete projects
+- Unlock project-level operations for Project Admin users
+
+
 ### Version 3.23.0 - March 26, 2026
 
 #### New Features
