@@ -2355,9 +2355,9 @@ app.post('/api/users', authenticateToken, async (req, res) => {
       existingPortalSlug, phone, sendWelcomeEmail: shouldSendWelcome = true
     } = req.body;
 
-    // Managers can only create client users
-    if (isCurrentUserManager && !isSuperAdmin && role !== config.ROLES.CLIENT) {
-      return res.status(403).json({ error: 'Managers can only create client users' });
+    // Managers can create any role except admin
+    if (isCurrentUserManager && !isSuperAdmin && role === config.ROLES.ADMIN) {
+      return res.status(403).json({ error: 'Managers cannot create admin users' });
     }
 
     if (!email || !password || !name) {
@@ -2961,8 +2961,15 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/api/users/:userId', authenticateToken, async (req, res) => {
   try {
+    const isSuperAdmin = req.user.role === config.ROLES.ADMIN;
+    const isCurrentUserManager = req.user.isManager || false;
+
+    if (!isSuperAdmin && !isCurrentUserManager) {
+      return res.status(403).json({ error: 'Admin or Manager access required' });
+    }
+
     const { userId } = req.params;
     const {
       name, email, role, password, assignedProjects, projectAccessLevels,
@@ -2973,6 +2980,16 @@ app.put('/api/users/:userId', authenticateToken, requireAdmin, async (req, res) 
     const users = await getUsers();
     const idx = users.findIndex(u => u.id === userId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
+
+    // Managers cannot edit admin users or promote users to admin
+    if (isCurrentUserManager && !isSuperAdmin) {
+      if (users[idx].role === config.ROLES.ADMIN) {
+        return res.status(403).json({ error: 'Managers cannot edit admin users' });
+      }
+      if (role === config.ROLES.ADMIN) {
+        return res.status(403).json({ error: 'Managers cannot assign admin role' });
+      }
+    }
 
     if (phone !== undefined) users[idx].phone = phone;
     if (emailUnsubscribed !== undefined) users[idx].emailUnsubscribed = emailUnsubscribed;

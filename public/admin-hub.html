@@ -471,10 +471,12 @@
         { id: 'knowledge_hub', label: 'Knowledge Hub', icon: Icons.document, color: 'text-teal-500', superAdminOnly: true },
       ];
 
-      // Filter menu items: Super Admin sees all, Manager only sees non-superAdminOnly items
+      // Filter menu items: Super Admin sees all, Manager sees non-superAdminOnly + users, others see non-superAdminOnly
       const menuItems = isSuperAdmin
         ? allMenuItems
-        : allMenuItems.filter(item => !item.superAdminOnly);
+        : isManager
+          ? allMenuItems.filter(item => !item.superAdminOnly || item.id === 'users')
+          : allMenuItems.filter(item => !item.superAdminOnly);
 
       // Determine user role label
       const getRoleLabel = () => {
@@ -906,7 +908,9 @@
     };
 
     // Full User Management Page with all features
-    const UsersPage = ({ token }) => {
+    const UsersPage = ({ token, user: currentUser }) => {
+      const isSuperAdmin = currentUser?.role === 'admin';
+      const isManager = currentUser?.isManager && !isSuperAdmin;
       const [users, setUsers] = useState([]);
       const [projects, setProjects] = useState([]);
       const [clients, setClients] = useState([]);
@@ -942,13 +946,14 @@
 
       const loadData = async () => {
         setLoading(true);
-        const [usersRes, projectsRes, resetsRes, clientsRes, portalsRes] = await Promise.all([
+        const promises = [
           api.getUsers(token),
           api.getProjects(token),
-          api.getPasswordResetRequests(token),
+          isSuperAdmin ? api.getPasswordResetRequests(token) : Promise.resolve([]),
           fetch('/api/clients', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).catch(() => []),
           fetch('/api/client-portals', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).catch(() => [])
-        ]);
+        ];
+        const [usersRes, projectsRes, resetsRes, clientsRes, portalsRes] = await Promise.all(promises);
         if (!usersRes.error) setUsers(usersRes);
         if (!projectsRes.error) setProjects(projectsRes);
         if (!resetsRes.error) setPasswordResets(resetsRes);
@@ -1199,17 +1204,21 @@
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-accent">User Management</h1>
-                <p className="text-gray-600 mt-1">Manage all users, roles, and portal access</p>
+                <p className="text-gray-600 mt-1">{isManager ? 'Manage users, roles, and portal access (admin accounts are read-only)' : 'Manage all users, roles, and portal access'}</p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={exportUsersToXlsx}
-                  className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:shadow-md transition-all border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
-                  {Icons.download} Export
-                </button>
-                <button onClick={() => { setShowBulkReset(true); setBulkResetResults(null); }}
-                  className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:shadow-md transition-all border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100">
-                  {Icons.key} Bulk Reset
-                </button>
+                {isSuperAdmin && (
+                  <button onClick={exportUsersToXlsx}
+                    className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:shadow-md transition-all border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                    {Icons.download} Export
+                  </button>
+                )}
+                {isSuperAdmin && (
+                  <button onClick={() => { setShowBulkReset(true); setBulkResetResults(null); }}
+                    className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:shadow-md transition-all border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100">
+                    {Icons.key} Bulk Reset
+                  </button>
+                )}
                 <button onClick={() => { setShowForm(true); setEditingUser(null); setFormData(defaultFormData); }}
                   className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:shadow-md transition-all"
                   style={{backgroundColor: '#045E9F', color: 'white'}}>
@@ -1223,9 +1232,11 @@
               <button onClick={() => setActiveTab('list')} className={`px-4 py-2 font-medium ${activeTab === 'list' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>
                 Users ({users.length})
               </button>
-              <button onClick={() => setActiveTab('resets')} className={`px-4 py-2 font-medium ${activeTab === 'resets' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>
-                Password Resets {passwordResets.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{passwordResets.length}</span>}
-              </button>
+              {isSuperAdmin && (
+                <button onClick={() => setActiveTab('resets')} className={`px-4 py-2 font-medium ${activeTab === 'resets' ? 'border-b-2 border-primary text-primary' : 'text-gray-500'}`}>
+                  Password Resets {passwordResets.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{passwordResets.length}</span>}
+                </button>
+              )}
             </div>
 
             {message && <div className={`mt-4 p-3 rounded-lg ${message.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message}</div>}
@@ -1320,7 +1331,7 @@
                       <select value={formData.role === 'user' && formData.isManager ? 'manager' : formData.role} onChange={(e) => {
                           const val = e.target.value;
                           if (val === 'manager') {
-                            setFormData({ ...formData, role: 'user', isManager: true });
+                            setFormData({ ...formData, role: 'user', isManager: true, hasAdminHubAccess: true, hasClientPortalAdminAccess: true });
                           } else {
                             setFormData({ ...formData, role: val, isManager: false });
                           }
@@ -1328,7 +1339,7 @@
                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary">
                         <option value="user">Team Member</option>
                         <option value="manager">Manager</option>
-                        <option value="admin">Super Admin</option>
+                        {isSuperAdmin && <option value="admin">Super Admin</option>}
                         <option value="client">Client</option>
                         <option value="vendor">External Vendor</option>
                       </select>
@@ -1336,7 +1347,7 @@
                   </div>
 
                   {/* Permission Flags (for team members) */}
-                  {(formData.role === 'user' || formData.role === 'admin') && (
+                  {formData.role === 'user' && (
                     <div className="border-t pt-4">
                       <h3 className="font-medium text-gray-800 mb-3">Access Permissions</h3>
 
@@ -1348,9 +1359,10 @@
                           <label htmlFor="serviceAccess" className="text-sm font-medium text-gray-700">Service Portal</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                          <input type="checkbox" id="adminHubAccess" checked={formData.hasAdminHubAccess}
+                          <input type="checkbox" id="adminHubAccess" checked={formData.hasAdminHubAccess || formData.isManager}
+                            disabled={formData.isManager}
                             onChange={(e) => setFormData({ ...formData, hasAdminHubAccess: e.target.checked })}
-                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            className={`w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${formData.isManager ? 'opacity-60 cursor-not-allowed' : ''}`} />
                           <label htmlFor="adminHubAccess" className="text-sm font-medium text-gray-700">Admin Hub</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
@@ -1360,13 +1372,16 @@
                           <label htmlFor="implAccess" className="text-sm font-medium text-gray-700">Implementations App</label>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
-                          <input type="checkbox" id="clientPortalAdmin" checked={formData.hasClientPortalAdminAccess}
+                          <input type="checkbox" id="clientPortalAdmin" checked={formData.hasClientPortalAdminAccess || formData.isManager}
+                            disabled={formData.isManager}
                             onChange={(e) => setFormData({ ...formData, hasClientPortalAdminAccess: e.target.checked })}
-                            className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+                            className={`w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 ${formData.isManager ? 'opacity-60 cursor-not-allowed' : ''}`} />
                           <label htmlFor="clientPortalAdmin" className="text-sm font-medium text-gray-700">Client Portal Admin</label>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">Admins automatically have all permissions. Managers with Service Portal access can manage vendors and assignments.</p>
+                      <p className="text-xs text-gray-500 mt-2">{formData.isManager
+                        ? 'Managers automatically get Admin Hub and Client Portal Admin access. Check additional portals as needed.'
+                        : 'Users with assigned projects also get Implementations access automatically.'}</p>
                     </div>
                   )}
 
@@ -1746,23 +1761,33 @@
                             )}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <button onClick={() => toggleAccountStatus(user)}
-                              disabled={user.role === 'admin'}
-                              className={`px-2.5 py-1 text-xs rounded-full font-medium transition ${user.accountStatus === 'inactive' ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'} ${user.role === 'admin' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-                              title={user.role === 'admin' ? 'Admin accounts cannot be deactivated' : `Click to ${user.accountStatus === 'inactive' ? 'reactivate' : 'deactivate'}`}>{user.accountStatus === 'inactive' ? 'Inactive' : 'Active'}</button>
+                            {(isSuperAdmin || (isManager && user.role !== 'admin')) ? (
+                              <button onClick={() => toggleAccountStatus(user)}
+                                disabled={user.role === 'admin'}
+                                className={`px-2.5 py-1 text-xs rounded-full font-medium transition ${user.accountStatus === 'inactive' ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'} ${user.role === 'admin' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                                title={user.role === 'admin' ? 'Admin accounts cannot be deactivated' : `Click to ${user.accountStatus === 'inactive' ? 'reactivate' : 'deactivate'}`}>{user.accountStatus === 'inactive' ? 'Inactive' : 'Active'}</button>
+                            ) : (
+                              <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${user.accountStatus === 'inactive' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{user.accountStatus === 'inactive' ? 'Inactive' : 'Active'}</span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
                           <td className="px-4 py-4">
                             <div className="flex gap-2">
-                              <button onClick={() => handleEdit(user)} className="p-1 text-primary hover:bg-primary/10 rounded" title="Edit">{Icons.edit}</button>
-                              <button
-                                onClick={() => toggleEmailSubscription(user)}
-                                className={`p-1 rounded ${user.emailUnsubscribed ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:bg-gray-100'}`}
-                                title={user.emailUnsubscribed ? 'Resubscribe to emails' : 'Unsubscribe from emails'}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                              </button>
-                              <button onClick={() => handleDelete(user.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">{Icons.trash}</button>
+                              {(isSuperAdmin || (isManager && user.role !== 'admin')) && (
+                                <button onClick={() => handleEdit(user)} className="p-1 text-primary hover:bg-primary/10 rounded" title="Edit">{Icons.edit}</button>
+                              )}
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => toggleEmailSubscription(user)}
+                                  className={`p-1 rounded ${user.emailUnsubscribed ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                  title={user.emailUnsubscribed ? 'Resubscribe to emails' : 'Unsubscribe from emails'}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                </button>
+                              )}
+                              {isSuperAdmin && (
+                                <button onClick={() => handleDelete(user.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">{Icons.trash}</button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -4373,9 +4398,9 @@
       // Check if user is a Manager - limited access (no inbox/user management)
       const isManager = user?.isManager && !isSuperAdmin;
 
-      // Navigation guard: Managers cannot access inbox or users pages
+      // Navigation guard: Managers cannot access inbox page
       const handleNavigation = (page) => {
-        if (isManager && (page === 'inbox' || page === 'users')) {
+        if (isManager && page === 'inbox') {
           // Redirect managers to dashboard if they try to access restricted pages
           setActivePage('dashboard');
         } else {
@@ -4385,14 +4410,14 @@
 
       const renderPage = () => {
         // Additional protection: if manager somehow gets to restricted page, show dashboard
-        if (isManager && (activePage === 'inbox' || activePage === 'users')) {
+        if (isManager && activePage === 'inbox') {
           return <DashboardPage token={token} onNavigate={handleNavigation} user={user} />;
         }
 
         switch (activePage) {
           case 'dashboard': return <DashboardPage token={token} onNavigate={handleNavigation} user={user} />;
           case 'inbox': return <InboxPage token={token} />;
-          case 'users': return <UsersPage token={token} />;
+          case 'users': return <UsersPage token={token} user={user} />;
           case 'notifications': return <NotificationsPage token={token} isSuperAdmin={isSuperAdmin} />;
           case 'service_portal': return <ServicePortalPage token={token} user={user} />;
           case 'knowledge_hub': return <KnowledgeHubPage token={token} />;
