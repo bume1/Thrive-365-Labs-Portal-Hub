@@ -679,9 +679,15 @@
                 </div>
 
                 {isRequired && (
-                  <p className="text-xs text-gray-400 text-center mt-4">
-                    You must create a new password before continuing. Contact your administrator if you need assistance.
-                  </p>
+                  <div className="text-center mt-4 space-y-2">
+                    <p className="text-xs text-gray-400">
+                      You must create a new password before continuing. Contact your administrator if you need assistance.
+                    </p>
+                    <button type="button" onClick={() => { localStorage.clear(); window.location.reload(); }}
+                      className="text-xs text-primary-600 hover:text-primary-800 underline transition">
+                      Sign out and return to login
+                    </button>
+                  </div>
                 )}
               </form>
             )}
@@ -698,6 +704,34 @@
         return stored ? JSON.parse(stored) : null;
       });
       const [showPasswordChange, setShowPasswordChange] = useState(false);
+      const [verifying, setVerifying] = useState(!!localStorage.getItem('unified_token'));
+
+      // On page load, verify session with server to get fresh requirePasswordChange flag
+      React.useEffect(() => {
+        if (!token) { setVerifying(false); return; }
+        fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => {
+            if (!r.ok) throw new Error('Session invalid');
+            return r.json();
+          })
+          .then(freshUser => {
+            // Update local user with fresh flag from server
+            const stored = localStorage.getItem('unified_user') || localStorage.getItem('admin_user');
+            const localUser = stored ? JSON.parse(stored) : {};
+            const updatedUser = { ...localUser, requirePasswordChange: freshUser.requirePasswordChange };
+            setUser(updatedUser);
+            localStorage.setItem('unified_user', JSON.stringify(updatedUser));
+            localStorage.setItem('admin_user', JSON.stringify(updatedUser));
+            setVerifying(false);
+          })
+          .catch(() => {
+            // Token expired or invalid — clear session and show login
+            localStorage.clear();
+            setToken(null);
+            setUser(null);
+            setVerifying(false);
+          });
+      }, []);
 
       const handleLogin = (newToken, newUser) => {
         setToken(newToken);
@@ -719,6 +753,15 @@
         setUser(updatedUser);
         setShowPasswordChange(false);
       };
+
+      // Show loading spinner while verifying session with server
+      if (verifying) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+            <div className="animate-spin w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full"></div>
+          </div>
+        );
+      }
 
       if (!token || !user) {
         return <LoginPage onLogin={handleLogin} />;

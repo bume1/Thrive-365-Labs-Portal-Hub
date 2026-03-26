@@ -139,6 +139,7 @@ app.get('/thrive365labslaunch', (req, res) => {
         name: config.DEFAULT_ADMIN.NAME,
         password: hashedPassword,
         role: config.ROLES.ADMIN,
+        requirePasswordChange: false,
         createdAt: new Date().toISOString()
       });
       await db.set('users', users);
@@ -2522,6 +2523,27 @@ app.get('/api/client-portals', authenticateToken, async (req, res) => {
 // No authentication required - provides brand, phases, statuses, service types
 app.get('/api/config', (req, res) => {
   res.json(config.getPublicConfig());
+});
+
+// Verify current session and return fresh user flags (e.g. requirePasswordChange)
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const users = await getUsers();
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      requirePasswordChange: user.requirePasswordChange || false
+    });
+  } catch (error) {
+    console.error('Auth me error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
