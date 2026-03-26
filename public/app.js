@@ -2366,7 +2366,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
                     >
                       Clone Project
                     </button>
-                    {user.role === 'admin' && (
+                    {(user.role === 'admin' || (user.projectAccessLevels || {})[project.id] === 'admin') && (
                       <button
                         onClick={() => handleDeleteProject(project)}
                         className="flex-1 bg-red-50 text-red-600 py-2 rounded-md hover:bg-red-100 text-sm"
