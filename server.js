@@ -11892,6 +11892,11 @@ app.put('/api/validation-reports/:id', authenticateToken, requireServiceAccess, 
   }
 });
 
+// Implementation Overview standalone page route
+app.get('/implementation-overview', (req, res) => {
+  res.sendFile(__dirname + '/public/implementation-overview.html');
+});
+
 // Service portal HTML route
 app.get('/service-portal', (req, res) => {
   res.sendFile(__dirname + '/public/service-portal.html');
