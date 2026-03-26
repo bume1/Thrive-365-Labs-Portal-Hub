@@ -757,6 +757,13 @@ const api = {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
+    }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' })),
+
+  // Lightweight project resolver — returns a single project by slug without loading all task data.
+  // Much faster than getProjects() for direct URL navigation to /launch/:slug-internal.
+  resolveProjectBySlug: (token, slug) =>
+    fetch(`${API_URL}/api/projects/resolve-slug/${encodeURIComponent(slug)}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
     }).then(handleResponse).catch(err => ({ error: err.message || 'Network error' }))
 };
 
@@ -3721,7 +3728,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
     return ownerList;
   };
 
-  const allOwners = getAllOwners();
+  const allOwners = useMemo(() => getAllOwners(), [tasks, teamMembers]);
 
   const handleBulkComplete = async (completed) => {
     if (selectedTasks.length === 0) return;
@@ -4624,39 +4631,70 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   const completedTasks = tasks.filter(t => t.completed).length;
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Group filtered tasks by phase and stage
-  const rawGroupedByPhase = getFilteredTasks().reduce((acc, task, idx) => {
-    if (!acc[task.phase]) acc[task.phase] = {};
-    const stageKey = task.stage || 'General';
-    if (!acc[task.phase][stageKey]) acc[task.phase][stageKey] = [];
-    acc[task.phase][stageKey].push({ ...task, _originalIdx: idx });
-    return acc;
-  }, {});
+  // Memoize filtered+grouped tasks — avoids re-computing on every render when unrelated state changes
+  const groupedByPhase = useMemo(() => {
+    const rawGrouped = getFilteredTasks().reduce((acc, task, idx) => {
+      if (!acc[task.phase]) acc[task.phase] = {};
+      const stageKey = task.stage || 'General';
+      if (!acc[task.phase][stageKey]) acc[task.phase][stageKey] = [];
+      acc[task.phase][stageKey].push({ ...task, _originalIdx: idx });
+      return acc;
+    }, {});
 
-  // Sort tasks within each stage by due date first, then stageOrder
-  Object.keys(rawGroupedByPhase).forEach(phase => {
-    Object.keys(rawGroupedByPhase[phase]).forEach(stage => {
-      rawGroupedByPhase[phase][stage].sort((a, b) => {
-        // First sort by due date (tasks with due dates come first, sorted by date)
-        const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-        const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-        if (aDate !== bDate) return aDate - bDate;
-        // Then by stageOrder as secondary sort
-        return (a.stageOrder || a._originalIdx + 1) - (b.stageOrder || b._originalIdx + 1);
+    // Sort tasks within each stage by due date first, then stageOrder
+    Object.keys(rawGrouped).forEach(phase => {
+      Object.keys(rawGrouped[phase]).forEach(stage => {
+        rawGrouped[phase][stage].sort((a, b) => {
+          const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+          const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+          if (aDate !== bDate) return aDate - bDate;
+          return (a.stageOrder || a._originalIdx + 1) - (b.stageOrder || b._originalIdx + 1);
+        });
       });
     });
-  });
 
-  // Ensure all phases and stages are always visible (even if empty)
-  const groupedByPhase = ensureAllPhasesAndStages(rawGroupedByPhase);
+    return ensureAllPhasesAndStages(rawGrouped);
+  }, [tasks, viewMode, selectedPhases, selectedOwners, selectedTags, selectedStatus, searchQuery, teamMembers]);
 
   const phases = [...new Set(tasks.map(t => t.phase))];
   const owners = getUniqueOwners();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-xl">Loading tracker...</div>
+      <div className="min-h-screen bg-gray-50">
+        <AppHeader user={user} onLogout={onLogout}>
+          <button onClick={onBack} className="text-gray-700 hover:text-primary font-medium text-sm uppercase tracking-wide">
+            ← Back
+          </button>
+        </AppHeader>
+        <div className="p-3 sm:p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6 mb-6 animate-pulse">
+              <div className="h-7 bg-gray-200 rounded w-64 mb-2"></div>
+              <div className="h-4 bg-gray-100 rounded w-40 mb-6"></div>
+              <div className="flex gap-2 flex-wrap">
+                {[1,2,3,4].map(i => <div key={i} className="h-8 bg-gray-100 rounded w-20"></div>)}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-6 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-48 mb-3"></div>
+              <div className="w-full bg-gray-200 rounded-full h-5"></div>
+            </div>
+            {[1,2,3].map(i => (
+              <div key={i} className="mb-8 animate-pulse">
+                <div className="h-14 bg-gray-300 rounded-lg mb-4"></div>
+                <div className="space-y-3 pl-1">
+                  {[1,2,3].map(j => (
+                    <div key={j} className="bg-white rounded-lg p-4 shadow-sm">
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -8612,11 +8650,9 @@ const App = () => {
 
   useEffect(() => {
     if (token && pendingInternalSlug) {
-      api.getProjects(token).then(projects => {
-        const project = projects.find(p => 
-          p.clientLinkSlug === pendingInternalSlug || p.clientLinkId === pendingInternalSlug
-        );
-        if (project) {
+      // Use lightweight slug resolver instead of loading all projects with task data
+      api.resolveProjectBySlug(token, pendingInternalSlug).then(project => {
+        if (project && !project.error) {
           setSelectedProject(project);
           setView('tracker');
         }
