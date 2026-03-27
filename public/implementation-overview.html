@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-id="th-modified">Thrive 365 Labs - Onboarding & Implementation Process Overview (10 Phases)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+        
+        .view-toggle {
+            background: #f0f9ff;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 3px solid #0891b2;
+        }
+        
+        .toggle-btn {
+            background: white;
+            border: 2px solid #0891b2;
+            color: #0891b2;
+            padding: 12px 30px;
+            margin: 0 10px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .toggle-btn:hover {
+            background: #0891b2;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+        }
+        
+        .toggle-btn.active {
+            background: #0891b2;
+            color: white;
+        }
+        
+        .workflow-view {
+            display: none;
+            padding: 40px;
+        }
+        
+        .workflow-view.active {
+            display: block;
+        }
+        
+        .view-title {
+            font-size: 2em;
+            color: #0891b2;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 800;
+        }
+        
+        /* SWIMLANE STYLES */
+        .swimlane-container {
+            overflow-x: auto;
+            margin-bottom: 40px;
+        }
+        
+        .swimlane {
+            min-width: 2400px;
+            display: grid;
+            grid-template-columns: 200px repeat(10, 1fr);
+            gap: 0;
+        }
+        
+        .lane-header {
+            position: sticky;
+            left: 0;
+            background: #0891b2;
+            color: white;
+            padding: 15px;
+            font-weight: 700;
+            text-align: center;
+            font-size: 0.9em;
+            border-right: 2px solid white;
+            z-index: 10;
+        }
+        
+        .lane-row {
+            display: contents;
+        }
+        
+        .lane-label {
+            position: sticky;
+            left: 0;
+            background: #f0f9ff;
+            padding: 20px 10px;
+            font-weight: 700;
+            border-right: 2px solid #0891b2;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.85em;
+            color: #0891b2;
+            z-index: 5;
+        }
+        
+        .lane-cell {
+            padding: 15px 10px;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            background: white;
+            min-height: 80px;
+        }
+        
+        .activity {
+            background: white;
+            border: 2px solid #0891b2;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 5px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Activity Category Colors */
+        .activity-integration {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .activity-procurement {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .activity-materials {
+            border-color: #8b5cf6;
+            background: #f5f3ff;
+        }
+        
+        .activity-clia {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .activity-title {
+            font-weight: 700;
+            color: inherit;
+            margin-bottom: 5px;
+            font-size: 0.95em;
+        }
+        
+        .activity-integration .activity-title {
+            color: #d97706;
+        }
+        
+        .activity-procurement .activity-title {
+            color: #2563eb;
+        }
+        
+        .activity-materials .activity-title {
+            color: #7c3aed;
+        }
+        
+        .activity-clia .activity-title {
+            color: #dc2626;
+        }
+        
+        .activity-detail {
+            font-size: 0.85em;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        /* TIMELINE STYLES */
+        .timeline-container {
+            position: relative;
+            padding: 40px 0;
+        }
+        
+        .timeline {
+            position: relative;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #0891b2 0%, #0ea5e9 100%);
+        }
+        
+        .timeline-phase {
+            position: relative;
+            margin-bottom: 50px;
+            padding-left: 80px;
+        }
+        
+        .phase-marker {
+            position: absolute;
+            left: 18px;
+            top: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: white;
+            border: 4px solid #0891b2;
+            box-shadow: 0 0 0 4px white, 0 0 0 8px rgba(8, 145, 178, 0.2);
+        }
+        
+        .phase-content {
+            background: white;
+            border: 3px solid #0891b2;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .phase-title {
+            font-size: 1.4em;
+            color: #0891b2;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        .phase-items {
+            list-style: none;
+        }
+        
+        .phase-items li {
+            padding: 8px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+            position: relative;
+            padding-left: 20px;
+        }
+        
+        .phase-items li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: #0ea5e9;
+            font-weight: bold;
+        }
+        
+        .phase-note {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f0f9ff;
+            border-left: 3px solid #0ea5e9;
+            font-size: 0.85em;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* LEGEND STYLES */
+        .legend {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f0f9ff;
+            border-radius: 12px;
+            border: 3px solid #0891b2;
+        }
+        
+        .legend-title {
+            font-size: 1.3em;
+            color: #0891b2;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+        
+        .legend-items {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        
+        /* GANTT CHART STYLES */
+        .gantt-container {
+            overflow-x: auto;
+            margin-bottom: 40px;
+        }
+        
+        .gantt-chart {
+            min-width: 1400px;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 0;
+            border: 2px solid #0891b2;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .gantt-header {
+            background: #0891b2;
+            color: white;
+            padding: 15px;
+            font-weight: 700;
+            text-align: center;
+            border-bottom: 2px solid white;
+        }
+        
+        .gantt-timeline-header {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            background: #0891b2;
+            color: white;
+            border-bottom: 2px solid white;
+        }
+        
+        .gantt-month {
+            padding: 15px 5px;
+            text-align: center;
+            font-size: 0.85em;
+            font-weight: 700;
+            border-right: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .gantt-row {
+            display: contents;
+        }
+        
+        .gantt-phase-label {
+            background: #f0f9ff;
+            padding: 20px 15px;
+            font-weight: 700;
+            border-right: 2px solid #0891b2;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            color: #0891b2;
+        }
+        
+        .gantt-timeline-row {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            border-bottom: 1px solid #e0e0e0;
+            position: relative;
+            min-height: 60px;
+        }
+        
+        .gantt-bar {
+            position: absolute;
+            height: 35px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.75em;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .gantt-bar.phase-1 { background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%); }
+        .gantt-bar.phase-2 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .gantt-bar.phase-3 { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .gantt-bar.phase-4 { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        .gantt-bar.phase-5 { background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); }
+        .gantt-bar.phase-6 { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .gantt-bar.phase-7 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .gantt-bar.phase-8 { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .gantt-bar.phase-9 { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+        .gantt-bar.phase-10 { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        
+        .gantt-milestone {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #fbbf24;
+            border: 3px solid #f59e0b;
+            border-radius: 50%;
+            top: 10px;
+            transform: rotate(45deg);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 5;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .swimlane {
+                min-width: 3000px;
+            }
+            
+            .gantt-chart {
+                min-width: 2000px;
+            }
+        }
+    </style>
+<meta property="og:title" content="Thrive 365 Labs - Onboarding & Implementation Process Overview (10 Phases)" data-id="th-modified"><meta name="description" content="implementation_workflow_10phase" data-id="th-modified"><meta property="og:description" content="implementation_workflow_10phase" data-id="th-modified"><meta property="og:image" content="https://tiiny.host/assets/logo-purple-bg.png" data-id="th-modified"><meta property="og:url" content="https://t365limplementations.tiiny.site/" data-id="th-modified"><meta property="og:type" content="website" data-id="th-modified"><script defer data-domain="t365limplementations.tiiny.site" src="https://analytics.tiiny.site/js/plausible.js"></script><script type="text/javascript" src="https://tiiny.host/ad-script.js"></script></head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Thrive 365 Labs Onboarding & Implementation Process Overview</h1>
+            <p>Workflow Overview from Contract to Go-Live (10 Phases)</p>
+        </div>
+        
+        <div class="view-toggle">
+            <button class="toggle-btn active" onclick="showView('swimlane')">Swimlane View</button>
+            <button class="toggle-btn" onclick="showView('timeline')">Timeline View</button>
+            <button class="toggle-btn" onclick="showView('gantt')">Gantt Chart</button>
+        </div>
+        
+        <!-- SWIMLANE VIEW -->
+        <div class="workflow-view active" id="view-swimlane">
+            <h2 class="view-title">Swimlane: Roles & Responsibilities Across 10 Phases</h2>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button onclick="scrollSwimlane('left')" style="background: #0891b2; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">← Scroll Left</button>
+                <button onclick="scrollSwimlane('right')" style="background: #0891b2; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">Scroll Right →</button>
+            </div>
+            
+            <div class="swimlane-container" id="swimlane-scroll-container">
+                <div class="swimlane">
+                    <!-- Header Row -->
+                    <div class="lane-header">Role / Phase</div>
+                    <div class="lane-header">1. Contract & Initial Setup</div>
+                    <div class="lane-header">2. Financials, CLIA & Hiring</div>
+                    <div class="lane-header">3. Welcome Call</div>
+                    <div class="lane-header">4. Tech Infrastructure & Inventory Forecasting</div>
+                    <div class="lane-header">5. Onboarding Call</div>
+                    <div class="lane-header">6. Supply Orders & Logistics</div>
+                    <div class="lane-header">7. Virtual Soft Pilot & Delivery</div>
+                    <div class="lane-header">8. Training & Full Validation</div>
+                    <div class="lane-header">9. Go-Live</div>
+                    <div class="lane-header">10. Post-Launch Support</div>
+                    
+                    <!-- Sales Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Sales</div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Contract Execution</div>
+                                <div class="activity-detail">Close deal, execute contract, handoff to Implementations</div>
+                            </div>
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Provide Documentation</div>
+                                <div class="activity-detail">Pre-install checklist, client profile, ancillary supply list</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Support relationship building and management</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Define Testing Kit Needs</div>
+                                <div class="activity-detail">Based on volume projections and usage forecasts</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Optional Weekly Call Attendance</div>
+                                <div class="activity-detail">May attend for upsell opportunities and learning</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Ensure alignment on launch plan</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Account Executive</div>
+                                <div class="activity-detail">Ongoing relationship management</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Senior Leadership Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Senior Leadership</div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Contract Approval</div>
+                                <div class="activity-detail">Review and approve contract terms</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia">
+                                <div class="activity-title">CLIA Service Invoicing</div>
+                                <div class="activity-detail">Process CLIA-related billing</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%); border: 3px solid #0891b2;">
+                                <div class="activity-title" style="color: #0891b2; font-weight: 800;">Vendor Contract Negotiation</div>
+                                <div class="activity-detail">Handle vendor contracts for instrument and materials procurement</div>
+                            </div>
+                            <div class="activity activity-procurement">
+                                <div class="activity-title">Analyzer Procurement</div>
+                                <div class="activity-detail">Order and coordinate analyzer delivery</div>
+                            </div>
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Test Volume Forecasting</div>
+                                <div class="activity-detail">Confirm monthly/yearly QUA test projections</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Order Analyte Materials</div>
+                                <div class="activity-detail">Request POs for validation kits, sample kits, live testing supplies</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                    </div>
+                    
+                    <!-- Accounting Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Accounting</div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Contract Financing</div>
+                                <div class="activity-detail">Process initial contract payments</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Billing Setup</div>
+                                <div class="activity-detail">CPT verifications, fee schedule, invoice contact established</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Ongoing Financing</div>
+                                <div class="activity-detail">Process vendor payments during implementation</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Process Purchase Orders</div>
+                                <div class="activity-detail">Review and send formal POs for materials</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Delivery Payment</div>
+                                <div class="activity-detail">Process analyzer delivery payment</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Post-Launch Billing</div>
+                                <div class="activity-detail">Ongoing financial management</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Implementations Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Implementations</div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Pre-Install Checklist Verification</div>
+                                <div class="activity-detail">Verify client profile, assess CLIA needs, plan integrations</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Define Launch Team Roles</div>
+                                <div class="activity-detail">Establish internal team responsibilities</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Launch Details Verified</div>
+                                <div class="activity-detail">Confirm all contract details accurate</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia">
+                                <div class="activity-title">CLIA Upgrade Submission</div>
+                                <div class="activity-detail">Submit CMS-116 paperwork, coordinate with client</div>
+                            </div>
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Hiring Coordination</div>
+                                <div class="activity-detail">Support lab tech recruitment and screening</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Host Welcome Call</div>
+                                <div class="activity-detail">Build rapport, 30,000 ft overview (Welcome Call deck)</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #0891b2;">
+                                <div class="activity-title" style="color: #0891b2; font-weight: 800;">Weekly Implementation Calls</div>
+                                <div class="activity-detail">~1 hour calls. Collaborate on: LIS/EHR/Instrument Integration, CLIA Upgrade & Lab Setup, Pre-Installation Assessments, Materials Prep, Installation Prep</div>
+                            </div>
+                            <div class="activity activity-integration">
+                                <div class="activity-title">LIS/EHR Integration Planning</div>
+                                <div class="activity-detail">Lead tech infrastructure setup, interface meetings, integration syncs</div>
+                            </div>
+                            <div class="activity activity-procurement">
+                                <div class="activity-title">Virtual Lab Space Assessment</div>
+                                <div class="activity-detail">Assess physical space for installation</div>
+                            </div>
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Client Portal Inventory Setup</div>
+                                <div class="activity-detail">Prepare inventory tracking in portal</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Host Onboarding Call</div>
+                                <div class="activity-detail">Detailed launch plan with key dates (Onboarding Call deck)</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Confirm Installation Dates</div>
+                                <div class="activity-detail">Coordinate with FSE and client for installation timing</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Confirm CAS Participation</div>
+                                <div class="activity-detail">Ensure CAS available for validation support</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">AnyDesk Setup</div>
+                                <div class="activity-detail">Remote access configuration for support</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Pre-Launch Checklist</div>
+                                <div class="activity-detail">Confirm all items in place for validation</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Client Portal Training</div>
+                                <div class="activity-detail">Train on inventory management, reporting, customer success features</div>
+                            </div>
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Oversee LIS/EHR Integration</div>
+                                <div class="activity-detail">Coordinate with IT Contact and Instrument Engineers</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Co-Oversee Go-Live</div>
+                                <div class="activity-detail">Manage go-live execution with Customer Success</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Biweekly Check-ins</div>
+                                <div class="activity-detail">Collaborate with Customer Success on 30/60/90 day reviews</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Success Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Customer Success</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Support customer onboarding efforts where able</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Join Weekly Calls</div>
+                                <div class="activity-detail">Stay aware of support targets and upsell opportunities</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Support onboarding, prepare for account management transition</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Support LIS Integration</div>
+                                <div class="activity-detail">Serve as resource for integration efforts</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Co-Oversee Go-Live</div>
+                                <div class="activity-detail">Manage go-live execution with Implementations</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Post-Launch Monitoring</div>
+                                <div class="activity-detail">Week 1/2 check-ins, 30/60/90 day reviews, account optimization</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Client: On-Site Project Manager Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Client: On-Site Project Manager</div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Complete Client Profile</div>
+                                <div class="activity-detail">Provide business and operational details</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Pre-Installation Form</div>
+                                <div class="activity-detail">Complete and submit pre-install checklist, provide CMS-116 info</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Billing Support Setup</div>
+                                <div class="activity-detail">Connect with billing support team</div>
+                            </div>
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Lab Tech Hiring</div>
+                                <div class="activity-detail">Review candidates, conduct interviews, make hiring decision</div>
+                            </div>
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Lab Director Confirmation</div>
+                                <div class="activity-detail">Confirm Lab Director participation, obtain CV</div>
+                            </div>
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Submit Lab Test Menu</div>
+                                <div class="activity-detail">Provide current test menu for CMS-116 filing</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Share details, align on expectations</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Participate Weekly</div>
+                                <div class="activity-detail">Collaborate on logistics and planning</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Review and confirm launch timeline</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Confirm Ancillary Supplies</div>
+                                <div class="activity-detail">Verify DI water source, table placement, ancillary items</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Coordinate Site Preparation</div>
+                                <div class="activity-detail">Prepare lab space for installation</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Oversee Go-Live</div>
+                                <div class="activity-detail">Manage implementation rollout, participate in reviews</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Participate in Reviews</div>
+                                <div class="activity-detail">Attend 30/60/90 day check-ins</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Client: Lab Tech/Lab Manager Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Client: Lab Tech/Lab Manager</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Participate in initial alignment</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Participate Weekly</div>
+                                <div class="activity-detail">Provide lab operations input</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Review technical launch requirements</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Confirm Urine Sample Source</div>
+                                <div class="activity-detail">Identify and secure urine samples for validation (30-50 minimum)</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Receive Instrument</div>
+                                <div class="activity-detail">Support FSE during installation</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia" style="border-width: 3px;">
+                                <div class="activity-title" style="font-weight: 800;">PRIMARY: Perform Full Validation</div>
+                                <div class="activity-detail">Execute ALL validation tests: precision, linearity, specificity, interference, LOD/LOB, patient correlation. CAS provides support and training.</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Receive Training</div>
+                                <div class="activity-detail">Hands-on training from CAS on instrument operation</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Process First Live Samples</div>
+                                <div class="activity-detail">Begin live patient testing operations</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Daily Operations</div>
+                                <div class="activity-detail">Execute routine testing workflows</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Client: IT Contact Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Client: IT Contact</div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Early Engagement</div>
+                                <div class="activity-detail">Assess network requirements and access protocols</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Understand integration scope</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Integration Planning</div>
+                                <div class="activity-detail">Coordinate network/system requirements with Implementations</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Confirm technical readiness</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Network Setup</div>
+                                <div class="activity-detail">Ensure network connectivity for instrument</div>
+                            </div>
+                            <div class="activity activity-integration">
+                                <div class="activity-title">LIS Compatibility Check</div>
+                                <div class="activity-detail">Verify LIS connection readiness</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Oversee LIS Integration</div>
+                                <div class="activity-detail">Collaborate with Implementations to coordinate network, instrument, LIS/EHR connectivity</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Go-Live IT Support</div>
+                                <div class="activity-detail">Support system connectivity during go-live</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Ongoing IT Support</div>
+                                <div class="activity-detail">Troubleshoot connectivity issues</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Clinical Application Specialists Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Clinical Application Specialists</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Provide technical perspective</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Validation Kit Forecasting</div>
+                                <div class="activity-detail">Define linearity, specificity, interference materials needed</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Review validation execution plan</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-materials">
+                                <div class="activity-title">Track Validation Kit Delivery</div>
+                                <div class="activity-detail">Confirm validation and sample kits shipping and receipt</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Confirm Kit Receipt</div>
+                                <div class="activity-detail">Verify all validation materials delivered</div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-title">Provide Documentation</div>
+                                <div class="activity-detail">Material inserts, COAs, SOP templates</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">SUPPORT: Training & Validation</div>
+                                <div class="activity-detail">Provide hands-on training to Lab Tech, support validation execution, answer questions</div>
+                            </div>
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Create Validation Package</div>
+                                <div class="activity-detail">Compile validation documentation for Lab Director review</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Ongoing Technical Support</div>
+                                <div class="activity-detail">90-day optimization support</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Service Engineer Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Field Service Engineer</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-procurement">
+                                <div class="activity-title">Deliver Analyzer</div>
+                                <div class="activity-detail">Transport and deliver instrument to site</div>
+                            </div>
+                            <div class="activity activity-procurement">
+                                <div class="activity-title">Install Analyzer</div>
+                                <div class="activity-detail">Execute physical installation of instrument</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">System Setup</div>
+                                <div class="activity-detail">Configure systems and parameters, setup reagents/cals/QCs</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                    </div>
+                    
+                    <!-- Lab Director Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Lab Director</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Confirm Participation</div>
+                                <div class="activity-detail">Agree to serve as Lab Director, provide CV</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Welcome Call</div>
+                                <div class="activity-detail">Establish CLIA compliance expectations</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Attend Onboarding Call</div>
+                                <div class="activity-detail">Review validation requirements</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia" style="border-width: 3px;">
+                                <div class="activity-title" style="font-weight: 800;">CRITICAL: Sign Validation Package</div>
+                                <div class="activity-detail">Review and sign validation package - REQUIRED before go-live</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell">
+                            <div class="activity activity-clia">
+                                <div class="activity-title">Authorize Go-Live</div>
+                                <div class="activity-detail">Validation + Training complete = Go-live approval</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                    </div>
+                    
+                    <!-- Instrument Engineers/Technical Support Row -->
+                    <div class="lane-row">
+                        <div class="lane-label">Instrument Engineers/Technical Support</div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Coordinate Technical Requirements</div>
+                                <div class="activity-detail">Align with Implementations on integration scope</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity activity-integration">
+                                <div class="activity-title">Support Integration</div>
+                                <div class="activity-detail">EHR/LIS vendor support, API configuration assistance</div>
+                            </div>
+                        </div>
+                        <div class="lane-cell"></div>
+                        <div class="lane-cell">
+                            <div class="activity">
+                                <div class="activity-title">Technical Troubleshooting</div>
+                                <div class="activity-detail">Vendor/technical support as needed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-title">Activity Categories & Color Coding</div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #fffbeb; border: 2px solid #f59e0b;"></div>
+                        <span><strong>Instrument-to-LIS-to-EHR Integration:</strong> System connectivity, API configuration, network setup, bidirectional data flow</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #eff6ff; border: 2px solid #3b82f6;"></div>
+                        <span><strong>Analyzer Procurement & Delivery:</strong> Vendor contracts, equipment delivery, installation logistics, physical setup</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f5f3ff; border: 2px solid #8b5cf6;"></div>
+                        <span><strong>Inventory & Consumables (Materials):</strong> Reagents, supplies, ancillary items, forecasting, automated reordering</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #fef2f2; border: 2px solid #ef4444;"></div>
+                        <span><strong>CLIA Filings/Upgrades:</strong> CMS-116 forms, compliance requirements, Lab Director sign-off, certificate processing</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #0891b2;"></div>
+                        <span><strong>Multi-Category Activities:</strong> Activities involving all implementation categories simultaneously</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+                    <div class="legend-title">Process Notes</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <span><strong>Phase 4 Weekly Implementation Calls:</strong> Ongoing collaboration between Welcome and Onboarding calls</span>
+                        </div>
+                        <div class="legend-item">
+                            <span><strong>Phase 8 Validation:</strong> Lab Tech PERFORMS all validation tests with CAS providing support and training</span>
+                        </div>
+                        <div class="legend-item">
+                            <span><strong>Critical Gate:</strong> Lab Director validation package sign-off REQUIRED before go-live authorization</span>
+                        </div>
+                        <div class="legend-item">
+                            <span><strong>Phase 10 Reviews:</strong> Customer Success leads 30/60/90 day performance reviews with Implementations support</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TIMELINE VIEW -->
+        <div class="workflow-view" id="view-timeline">
+            <h2 class="view-title">Timeline: 10-Phase Implementation Process Flow</h2>
+            
+            <div class="timeline-container">
+                <div class="timeline">
+                    <!-- Phase 1 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 1: Contract & Initial Setup</div>
+                            <ul class="phase-items">
+                                <li>Sales closes deal and executes contract</li>
+                                <li>Senior Leadership approves contract terms</li>
+                                <li>Accounting processes initial contract financing</li>
+                                <li>Sales provides pre-install checklist, client profile, ancillary supply list</li>
+                                <li>Client PM completes client profile and pre-installation form</li>
+                                <li>Implementations verifies pre-install checklist, assesses CLIA needs, plans integrations</li>
+                                <li>Implementations defines internal launch team roles</li>
+                                <li>BAA signed</li>
+                                <li>HubSpot/client profile setup completed</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 2 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 2: Financials, CLIA & Hiring</div>
+                            <ul class="phase-items">
+                                <li>Implementations submits CLIA upgrade paperwork (CMS-116)</li>
+                                <li>Client PM connects with billing support team</li>
+                                <li>Accounting establishes invoice contact, CPT verifications, fee schedule</li>
+                                <li>Client PM coordinates Lab Tech hiring with Implementations support</li>
+                                <li>Client PM confirms Lab Director participation, obtains CV</li>
+                                <li>Client PM submits current lab test menu for CMS-116</li>
+                                <li>Senior Leadership processes CLIA service invoicing</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 3 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 3: Welcome Call</div>
+                            <ul class="phase-items">
+                                <li>Implementations hosts Welcome Call</li>
+                                <li>Build rapport with all stakeholders</li>
+                                <li>Provide 30,000 ft overview of launch process (Welcome Call deck)</li>
+                                <li>Set expectations for next steps</li>
+                                <li><strong>All stakeholders attend:</strong> Sales, Senior Leadership, Accounting, Implementations, Customer Success, Client (PM + Lab Tech + IT Contact), Clinical Specialists, Field Service Engineer, Lab Director, Instrument Engineers</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 4 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 4: Tech Infrastructure & LIS Integration + Inventory Forecasting (Weekly Implementation Calls)</div>
+                            <ul class="phase-items">
+                                <li><strong>Weekly Implementation Calls (~1 hour on mutual day):</strong></li>
+                                <li>Implementations leads collaborative logistics planning</li>
+                                <li>Topics: LIS/EHR/Instrument Integration, CLIA Upgrade & Lab Setup, Pre-Installation Assessments, Materials Prep, Installation Prep</li>
+                                <li>Implementations conducts LIS/EHR integration planning, interface meetings, integration syncs</li>
+                                <li>IT Contact coordinates network/system requirements with Implementations</li>
+                                <li>Instrument Engineers align on technical requirements</li>
+                                <li>Senior Leadership handles vendor contract negotiation for instrument and materials</li>
+                                <li>Senior Leadership orders analyzer</li>
+                                <li>Senior Leadership confirms monthly/yearly test volume projections</li>
+                                <li>Implementations completes virtual lab space assessment</li>
+                                <li>Implementations prepares client portal inventory tracking</li>
+                                <li>Clinical Application Specialists define validation kit needs</li>
+                                <li>Sales defines live testing kit needs based on projections</li>
+                                <li>Accounting processes ongoing financing and vendor payments</li>
+                                <li>Customer Success joins calls to stay aware of support targets and upsell opportunities</li>
+                                <li>Sales may optionally attend for learning/awareness and upsell opportunities</li>
+                            </ul>
+                            <div class="phase-note">Ongoing collaborative calls between Welcome Call and Onboarding Call</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 5 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 5: Onboarding Call</div>
+                            <ul class="phase-items">
+                                <li>Implementations hosts Onboarding Call</li>
+                                <li>Present detailed launch plan with explicit timeline (Onboarding Call deck)</li>
+                                <li>Key dates confirmed: delivery → installation → validation → go-live → 90-day optimization</li>
+                                <li>Debut final project plan</li>
+                                <li><strong>All stakeholders attend:</strong> Sales, Senior Leadership, Accounting, Implementations, Customer Success, Client (PM + Lab Tech + IT Contact), Clinical Specialists, Field Service Engineer, Lab Director, Instrument Engineers</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 6 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 6: Supply Orders & Logistics</div>
+                            <ul class="phase-items">
+                                <li>Senior Leadership orders all analyte materials (validation kits, sample kits, live testing supplies)</li>
+                                <li>Accounting reviews and sends formal POs</li>
+                                <li>Implementations confirms installation dates with FSE and client</li>
+                                <li>Implementations confirms CAS availability for validation support</li>
+                                <li>Client PM confirms ancillary supplies: DI water source, table placement</li>
+                                <li>Clinical Application Specialists track validation and sample kit delivery</li>
+                                <li>Client-facing and internal KPIs solidified</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 7 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 7: Virtual Soft Pilot & Delivery</div>
+                            <ul class="phase-items">
+                                <li>Field Service Engineer delivers analyzer to site</li>
+                                <li>Accounting processes delivery payment</li>
+                                <li>Field Service Engineer executes physical installation of instrument</li>
+                                <li>IT Contact ensures network connectivity</li>
+                                <li>Implementations coordinates AnyDesk remote access setup</li>
+                                <li>IT Contact performs LIS connection compatibility check</li>
+                                <li>Clinical Application Specialists confirm validation kit receipt</li>
+                                <li>Clinical Application Specialists provide documentation: material inserts, COAs, SOP templates</li>
+                                <li>Client Lab Tech confirms urine sample source (30-50 minimum)</li>
+                                <li>Ancillary supplies delivered and verified</li>
+                                <li>Pre-launch feedback and Q&A session</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 8 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 8: Training & Full Validation</div>
+                            <ul class="phase-items">
+                                <li>Field Service Engineer configures systems and parameters, sets up reagents/cals/QCs</li>
+                                <li>Clinical Application Specialists provide technical training to Lab Tech</li>
+                                <li><strong>Client Lab Tech PERFORMS all validation tests with CAS support:</strong></li>
+                                <li>Intraprecision and Interprecision studies</li>
+                                <li>Linearity, Specificity, Interference Mix</li>
+                                <li>Limit of Detection (LOD) and Limit of Blank (LOB)</li>
+                                <li>Patient correlation studies</li>
+                                <li>Implementations trains Lab Tech on client portal: inventory management, reporting, customer success features</li>
+                                <li>Implementations oversees LIS/EHR/EMR integration with IT Contact and Instrument Engineers</li>
+                                <li>IT Contact oversees integration between network, instrument, and LIS/EHR</li>
+                                <li>Instrument Engineers provide EHR/LIS vendor support and API configuration</li>
+                                <li>Customer Success supports LIS integration as resource</li>
+                                <li>Clinical Application Specialists create validation package</li>
+                                <li><strong>Lab Director reviews and signs validation package (CRITICAL GATE)</strong></li>
+                            </ul>
+                            <div class="phase-note">Validation + Training must be complete and signed before go-live authorization</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 9 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 9: Go-Live</div>
+                            <ul class="phase-items">
+                                <li>Lab Director authorizes go-live (validation complete + training complete)</li>
+                                <li>Implementations and Customer Success co-oversee go-live execution</li>
+                                <li>IT Contact provides go-live IT support</li>
+                                <li>Go-live day support from Implementations and Customer Success</li>
+                                <li>Client Lab Tech processes first live patient samples</li>
+                                <li>Client begins live operations</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 10 -->
+                    <div class="timeline-phase">
+                        <div class="phase-marker"></div>
+                        <div class="phase-content">
+                            <div class="phase-title">Phase 10: Post-Launch Support & Optimization (90-Day Period)</div>
+                            <ul class="phase-items">
+                                <li>Customer Success leads Week 1 and Week 2 check-in calls</li>
+                                <li>Implementations and Customer Success collaborate on biweekly check-ins</li>
+                                <li>Customer Success conducts 30-day performance review with formal feedback</li>
+                                <li>Customer Success conducts 60-day performance review with formal feedback</li>
+                                <li>Customer Success conducts 90-day final review with formal feedback</li>
+                                <li>Customer Success manages post-launch monitoring and account optimization</li>
+                                <li>Sales serves as Account Executive for relationship management</li>
+                                <li>IT Contact provides ongoing system connectivity support</li>
+                                <li>Instrument Engineers available for technical troubleshooting</li>
+                                <li>Clinical Application Specialists provide ongoing technical support</li>
+                                <li>Accounting manages post-launch billing</li>
+                                <li>Customer Success handoff complete - full account management transition</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- GANTT CHART VIEW -->
+        <div class="workflow-view" id="view-gantt">
+            <h2 class="view-title">Gantt Chart: 10-Phase Implementation Timeline</h2>
+            
+            <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                <p style="margin: 0; color: #0891b2; font-weight: 600;">Typical Implementation Timeline: Contract to Go-Live (30-60 Days / 8 Weeks)</p>
+            </div>
+            
+            <div class="gantt-container">
+                <div class="gantt-chart">
+                    <!-- Header Row -->
+                    <div class="gantt-header">Phase</div>
+                    <div class="gantt-timeline-header">
+                        <div class="gantt-month">Week 1</div>
+                        <div class="gantt-month">Week 2</div>
+                        <div class="gantt-month">Week 3</div>
+                        <div class="gantt-month">Week 4</div>
+                        <div class="gantt-month">Week 5</div>
+                        <div class="gantt-month">Week 6</div>
+                        <div class="gantt-month">Week 7</div>
+                        <div class="gantt-month">Week 8+</div>
+                    </div>
+                    
+                    <!-- Phase 1 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">1. Contract & Initial Setup</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-1" style="left: 0%; width: 12.5%;">Week 1</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 2 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">2. Financials, CLIA & Hiring</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-2" style="left: 0%; width: 37.5%;">Weeks 1-3</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 3 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">3. Welcome Call</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-milestone" style="left: 18.75%;"></div>
+                            <div class="gantt-bar phase-3" style="left: 12.5%; width: 12.5%; text-align: center;">Week 2</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 4 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">4. Tech Infrastructure & Inventory Forecasting</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-4" style="left: 12.5%; width: 50%;">Weekly Implementation Calls: Weeks 2-6</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 5 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">5. Onboarding Call</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-milestone" style="left: 68.75%;"></div>
+                            <div class="gantt-bar phase-5" style="left: 62.5%; width: 12.5%; text-align: center; font-size: 0.7em;">Wk 5-6*</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 6 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">6. Supply Orders & Logistics</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-6" style="left: 12.5%; width: 50%;">Weeks 2-6</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 7 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">7. Virtual Soft Pilot & Delivery</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-milestone" style="left: 56.25%;"></div>
+                            <div class="gantt-bar phase-7" style="left: 37.5%; width: 25%;">Virtual Pilot & Delivery: Weeks 4-5</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 8 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">8. Training & Full Validation</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-8" style="left: 62.5%; width: 37.5%;">Training & Validation: Weeks 6-8</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 9 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">9. Go-Live</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-milestone" style="left: 93.75%;"></div>
+                            <div class="gantt-bar phase-9" style="left: 87.5%; width: 12.5%; text-align: center; font-size: 0.75em;">Week 8</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Phase 10 -->
+                    <div class="gantt-row">
+                        <div class="gantt-phase-label">10. Post-Launch Support & Optimization</div>
+                        <div class="gantt-timeline-row">
+                            <div class="gantt-bar phase-10" style="left: 87.5%; width: 12.5%;">90-Day Period (Week 8+)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-title">Gantt Chart Key</div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="gantt-milestone" style="position: static; transform: rotate(45deg);"></div>
+                        <span><strong>Diamond Milestone:</strong> Key decision points (Welcome Call, Onboarding Call, Delivery, Go-Live)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div style="width: 60px; height: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 4px;"></div>
+                        <span><strong>Colored Bars:</strong> Phase duration and timeline</span>
+                    </div>
+                    <div class="legend-item">
+                        <div style="width: 30px; height: 30px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 4px;"></div>
+                        <span><strong>Overlapping Phases:</strong> Many activities run in parallel (e.g., CLIA hiring during tech infrastructure planning)</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 2px solid #0891b2;">
+                    <div style="font-weight: 700; color: #0891b2; margin-bottom: 10px;">Timeline Notes:</div>
+                    <ul style="margin: 0; padding-left: 20px; color: #666;">
+                        <li><strong>Welcome Call:</strong> Scheduled for Week 2 after initial contract setup</li>
+                        <li><strong>Onboarding Call (*Week 5-6):</strong> Scheduled only once instrument delivery date is confirmed (typically Week 5-6)</li>
+                        <li><strong>Phase 4 (Weekly Implementation Calls):</strong> Runs continuously from Welcome Call through Onboarding Call</li>
+                        <li><strong>Phase 6 (Supply Orders):</strong> Overlaps with Phase 4 as materials are ordered during weekly planning</li>
+                        <li><strong>Phase 7 (Virtual Soft Pilot):</strong> Weeks 4-5 - Analyzer delivered, installed, and remote pilot completed BEFORE CAS arrives onsite</li>
+                        <li><strong>Phase 8 (Validation & Training):</strong> Weeks 6-8 - CAS provides 3-5 days of hands-on training within the full 7-14 day validation window. Lab Tech performs all validation tests with CAS support during this period.</li>
+                        <li><strong>Phase 9 (Go-Live):</strong> Week 8 - Occurs after validation is complete and signed by Lab Director</li>
+                        <li><strong>Phase 10:</strong> Extends beyond Week 8 for full 90-day post-launch optimization period</li>
+                        <li><strong>Typical Timeline:</strong> 30-60 days from contract to go-live (8 weeks average), with variations based on CLIA processing, hiring, and vendor lead times</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.workflow-view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Deactivate all buttons
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById('view-' + viewName).classList.add('active');
+            
+            // Activate clicked button
+            event.target.classList.add('active');
+        }
+        
+        function scrollSwimlane(direction) {
+            const container = document.getElementById('swimlane-scroll-container');
+            const scrollAmount = 400; // Adjust scroll distance as needed
+            
+            if (direction === 'left') {
+                container.scrollBy({
+                    left: -scrollAmount,
+                    behavior: 'smooth'
+                });
+            } else {
+                container.scrollBy({
+                    left: scrollAmount,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    </script>
+</body>
+</html>
