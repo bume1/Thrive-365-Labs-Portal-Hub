@@ -1387,7 +1387,7 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
         >
           + New Project
         </button>
-        {user.role === 'admin' && onManageTemplates && (
+        {(user.role === 'admin' || Object.values(user.projectAccessLevels || {}).includes('admin')) && onManageTemplates && (
           <button
             onClick={onManageTemplates}
             className="text-gray-700 hover:text-primary font-medium text-sm uppercase tracking-wide"
@@ -4636,7 +4636,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 Calendar
               </button>
               
-              {isAdmin && viewType === 'list' && (
+              {isAdminOrProjectAdmin && viewType === 'list' && (
                 <>
                   <div className="border-l border-gray-300 mx-2"></div>
                   <button
