@@ -4426,11 +4426,12 @@ app.put('/api/projects/:projectId/tasks/:taskId', authenticateToken, async (req,
     
     const task = tasks[idx];
     const isAdmin = req.user.role === config.ROLES.ADMIN;
+    const isProjAdmin = isProjectAdmin(req.user, projectId);
     const isCreator = task.createdBy === req.user.id;
     const isTemplateTask = !task.createdBy;
 
-    // Non-admins can only edit tasks they created (or template tasks for limited fields)
-    if (!isAdmin) {
+    // Non-admins (and non-project-admins) can only edit tasks they created (or template tasks for limited fields)
+    if (!isAdmin && !isProjAdmin) {
       // For template tasks (no createdBy), non-admins can only toggle completion and add notes
       if (isTemplateTask) {
         const allowedFields = ['completed', 'dateCompleted', 'notes'];

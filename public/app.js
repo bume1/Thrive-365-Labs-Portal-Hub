@@ -3479,9 +3479,10 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
 
   const isAdmin = user.role === 'admin';
   const isProjectAdmin = (user.projectAccessLevels || {})[project.id] === 'admin';
+  const isAdminOrProjectAdmin = isAdmin || isProjectAdmin;
   const userAccessLevel = isAdmin ? 'edit' : ((user.projectAccessLevels || {})[project.id] || 'edit');
-  const canEdit = isAdmin || userAccessLevel === 'edit';
-  const canManagePublish = isAdmin || isProjectAdmin;
+  const canEdit = isAdminOrProjectAdmin || userAccessLevel === 'edit';
+  const canManagePublish = isAdminOrProjectAdmin;
 
   const handleTogglePublishedStatus = async () => {
     const newStatus = (project.publishedStatus || 'published') === 'draft' ? 'published' : 'draft';
@@ -3972,7 +3973,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
   };
 
   const canEditSubtask = (subtask) => {
-    return isAdmin || user.email === subtask.owner;
+    return isAdminOrProjectAdmin || user.email === subtask.owner;
   };
 
   const handleToggleComplete = async (taskId) => {
@@ -4083,7 +4084,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
         dependencies: editingTask.dependencies
       };
 
-      if (isAdmin) {
+      if (isAdminOrProjectAdmin) {
         updates.phase = editingTask.phase;
         updates.stage = editingTask.stage;
         updates.owner = editingTask.owner;
@@ -4749,7 +4750,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                 ) : (
                   <span className="text-amber-600">No HubSpot Record ID configured</span>
                 )}
-                {isAdmin && (
+                {isAdminOrProjectAdmin && (
                   <button
                     onClick={() => setShowEditProject(true)}
                     className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200"
@@ -4757,7 +4758,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                     Edit Project Settings
                   </button>
                 )}
-                {isAdmin && (
+                {isAdminOrProjectAdmin && (
                   <button
                     onClick={() => setShowEmailComposer(true)}
                     className="px-2 py-1 bg-[#045E9F] text-white text-xs rounded hover:bg-[#00205A]"
@@ -4765,7 +4766,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                     Send Email
                   </button>
                 )}
-                {isAdmin && (
+                {isAdminOrProjectAdmin && (
                   <button
                     onClick={async () => {
                       if (confirm('Send a progress update email to all client users for this project?')) {
@@ -5418,7 +5419,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                 placeholder="Task Title"
                               />
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {isAdmin && (
+                                {isAdminOrProjectAdmin && (
                                   <>
                                     <div>
                                       <label className="block text-xs text-gray-500 mb-1">Phase</label>
@@ -5486,7 +5487,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                     </div>
                                   </>
                                 )}
-                                {(isAdmin || !task.dueDate || task.dueDate.trim() === '') && (
+                                {(isAdminOrProjectAdmin || !task.dueDate || task.dueDate.trim() === '') && (
                                   <div>
                                     <label className="block text-xs text-gray-500 mb-1">Due Date</label>
                                     <input
@@ -5542,7 +5543,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                   <p className="text-xs text-gray-400 mt-1">Hold Ctrl/Cmd to select multiple</p>
                                 </div>
                               </div>
-                              {isAdmin && (
+                              {isAdminOrProjectAdmin && (
                                 <div className="flex items-center gap-4">
                                   <label className="flex items-center gap-2 text-sm">
                                     <input
@@ -5637,7 +5638,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                     Cancel
                                   </button>
                                 </div>
-                                {isAdmin && (
+                                {isAdminOrProjectAdmin && (
                                   <div className="flex gap-1 items-center">
                                     <span className="text-xs text-gray-500 mr-2">Reorder:</span>
                                     <button
@@ -5678,15 +5679,15 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                   )}
                                 </h3>
                                 <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-                                  {viewMode === 'internal' && canEdit && (isAdmin || task.createdBy === user.id || !task.createdBy) && (
+                                  {viewMode === 'internal' && canEdit && (isAdminOrProjectAdmin || task.createdBy === user.id || !task.createdBy) && (
                                     <button
                                       onClick={() => handleEditTask(task.id)}
                                       className="text-gray-400 hover:text-primary text-sm"
                                     >
-                                      {isAdmin ? 'Edit' : (task.createdBy === user.id ? 'Edit' : 'Update Status')}
+                                      {isAdminOrProjectAdmin ? 'Edit' : (task.createdBy === user.id ? 'Edit' : 'Update Status')}
                                     </button>
                                   )}
-                                  {viewMode === 'internal' && canEdit && (isAdmin || (task.createdBy && task.createdBy === user.id)) && (
+                                  {viewMode === 'internal' && canEdit && (isAdminOrProjectAdmin || (task.createdBy && task.createdBy === user.id)) && (
                                     <button
                                       onClick={() => handleDeleteProjectTask(task.id)}
                                       className="text-gray-400 hover:text-red-600 text-sm"
@@ -5700,7 +5701,7 @@ const ProjectTracker = ({ token, user, project: initialProject, scrollToTaskId, 
                                 <div className="mt-2 space-y-1 text-xs sm:text-sm text-gray-600">
                                   <p className="break-words">
                                     <span className="font-medium">Primary:</span> {getOwnerName(task.owner)}{task.secondaryOwner && <span className="sm:ml-2 block sm:inline"><span className="font-medium">Secondary:</span> {getOwnerName(task.secondaryOwner)}</span>}
-                                    {!isAdmin && task.owner && (
+                                    {!isAdminOrProjectAdmin && task.owner && (
                                       <span className="text-xs text-gray-400 ml-2">(Admin only can edit)</span>
                                     )}
                                   </p>
