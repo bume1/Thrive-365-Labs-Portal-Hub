@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-id="th-modified">Thrive 365 Labs - Onboarding & Implementation Process Overview (10 Phases)</title>
+    <title>Launch Overview - Thrive 365 Labs</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,8 +16,8 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%);
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #045E9F 0%, #00205A 100%);
             padding: 20px;
             line-height: 1.6;
         }
@@ -28,7 +32,7 @@
         }
         
         .header {
-            background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%);
+            background: linear-gradient(135deg, #045E9F 0%, #00205A 100%);
             color: white;
             padding: 40px;
             text-align: center;
@@ -46,16 +50,16 @@
         }
         
         .view-toggle {
-            background: #f0f9ff;
+            background: #e6f2fa;
             padding: 20px;
             text-align: center;
-            border-bottom: 3px solid #0891b2;
+            border-bottom: 3px solid #045E9F;
         }
         
         .toggle-btn {
             background: white;
-            border: 2px solid #0891b2;
-            color: #0891b2;
+            border: 2px solid #045E9F;
+            color: #045E9F;
             padding: 12px 30px;
             margin: 0 10px;
             border-radius: 8px;
@@ -66,14 +70,14 @@
         }
         
         .toggle-btn:hover {
-            background: #0891b2;
+            background: #045E9F;
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
         }
         
         .toggle-btn.active {
-            background: #0891b2;
+            background: #045E9F;
             color: white;
         }
         
@@ -88,7 +92,7 @@
         
         .view-title {
             font-size: 2em;
-            color: #0891b2;
+            color: #045E9F;
             margin-bottom: 30px;
             text-align: center;
             font-weight: 800;
@@ -110,7 +114,7 @@
         .lane-header {
             position: sticky;
             left: 0;
-            background: #0891b2;
+            background: #045E9F;
             color: white;
             padding: 15px;
             font-weight: 700;
@@ -127,17 +131,17 @@
         .lane-label {
             position: sticky;
             left: 0;
-            background: #f0f9ff;
+            background: #e6f2fa;
             padding: 20px 10px;
             font-weight: 700;
-            border-right: 2px solid #0891b2;
+            border-right: 2px solid #045E9F;
             border-bottom: 1px solid #e0e0e0;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
             font-size: 0.85em;
-            color: #0891b2;
+            color: #045E9F;
             z-index: 5;
         }
         
@@ -151,7 +155,7 @@
         
         .activity {
             background: white;
-            border: 2px solid #0891b2;
+            border: 2px solid #045E9F;
             border-radius: 8px;
             padding: 12px;
             margin: 5px 0;
@@ -225,7 +229,7 @@
             top: 0;
             bottom: 0;
             width: 4px;
-            background: linear-gradient(180deg, #0891b2 0%, #0ea5e9 100%);
+            background: linear-gradient(180deg, #045E9F 0%, #00205A 100%);
         }
         
         .timeline-phase {
@@ -242,13 +246,13 @@
             height: 28px;
             border-radius: 50%;
             background: white;
-            border: 4px solid #0891b2;
+            border: 4px solid #045E9F;
             box-shadow: 0 0 0 4px white, 0 0 0 8px rgba(8, 145, 178, 0.2);
         }
         
         .phase-content {
             background: white;
-            border: 3px solid #0891b2;
+            border: 3px solid #045E9F;
             border-radius: 12px;
             padding: 25px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -256,7 +260,7 @@
         
         .phase-title {
             font-size: 1.4em;
-            color: #0891b2;
+            color: #045E9F;
             font-weight: 800;
             margin-bottom: 15px;
         }
@@ -277,15 +281,15 @@
             content: '→';
             position: absolute;
             left: 0;
-            color: #0ea5e9;
+            color: #00205A;
             font-weight: bold;
         }
         
         .phase-note {
             margin-top: 12px;
             padding: 10px;
-            background: #f0f9ff;
-            border-left: 3px solid #0ea5e9;
+            background: #e6f2fa;
+            border-left: 3px solid #00205A;
             font-size: 0.85em;
             color: #666;
             font-style: italic;
@@ -295,14 +299,14 @@
         .legend {
             margin-top: 40px;
             padding: 25px;
-            background: #f0f9ff;
+            background: #e6f2fa;
             border-radius: 12px;
-            border: 3px solid #0891b2;
+            border: 3px solid #045E9F;
         }
         
         .legend-title {
             font-size: 1.3em;
-            color: #0891b2;
+            color: #045E9F;
             font-weight: 800;
             margin-bottom: 15px;
         }
@@ -336,13 +340,13 @@
             display: grid;
             grid-template-columns: 250px 1fr;
             gap: 0;
-            border: 2px solid #0891b2;
+            border: 2px solid #045E9F;
             border-radius: 8px;
             overflow: hidden;
         }
         
         .gantt-header {
-            background: #0891b2;
+            background: #045E9F;
             color: white;
             padding: 15px;
             font-weight: 700;
@@ -353,7 +357,7 @@
         .gantt-timeline-header {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
-            background: #0891b2;
+            background: #045E9F;
             color: white;
             border-bottom: 2px solid white;
         }
@@ -371,14 +375,14 @@
         }
         
         .gantt-phase-label {
-            background: #f0f9ff;
+            background: #e6f2fa;
             padding: 20px 15px;
             font-weight: 700;
-            border-right: 2px solid #0891b2;
+            border-right: 2px solid #045E9F;
             border-bottom: 1px solid #e0e0e0;
             display: flex;
             align-items: center;
-            color: #0891b2;
+            color: #045E9F;
         }
         
         .gantt-timeline-row {
@@ -407,7 +411,7 @@
             text-overflow: ellipsis;
         }
         
-        .gantt-bar.phase-1 { background: linear-gradient(135deg, #0891b2 0%, #0ea5e9 100%); }
+        .gantt-bar.phase-1 { background: linear-gradient(135deg, #045E9F 0%, #00205A 100%); }
         .gantt-bar.phase-2 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
         .gantt-bar.phase-3 { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
         .gantt-bar.phase-4 { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
@@ -415,7 +419,7 @@
         .gantt-bar.phase-6 { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
         .gantt-bar.phase-7 { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
         .gantt-bar.phase-8 { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
-        .gantt-bar.phase-9 { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+        .gantt-bar.phase-9 { background: linear-gradient(135deg, #06b6d4 0%, #045E9F 100%); }
         .gantt-bar.phase-10 { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
         
         .gantt-milestone {
@@ -445,7 +449,7 @@
             }
         }
     </style>
-<meta property="og:title" content="Thrive 365 Labs - Onboarding & Implementation Process Overview (10 Phases)" data-id="th-modified"><meta name="description" content="implementation_workflow_10phase" data-id="th-modified"><meta property="og:description" content="implementation_workflow_10phase" data-id="th-modified"><meta property="og:image" content="https://tiiny.host/assets/logo-purple-bg.png" data-id="th-modified"><meta property="og:url" content="https://t365limplementations.tiiny.site/" data-id="th-modified"><meta property="og:type" content="website" data-id="th-modified"><script defer data-domain="t365limplementations.tiiny.site" src="https://analytics.tiiny.site/js/plausible.js"></script><script type="text/javascript" src="https://tiiny.host/ad-script.js"></script></head>
+</head>
 <body>
     <div class="container">
         <div class="header">
@@ -464,8 +468,8 @@
             <h2 class="view-title">Swimlane: Roles & Responsibilities Across 10 Phases</h2>
             
             <div style="text-align: center; margin-bottom: 20px;">
-                <button onclick="scrollSwimlane('left')" style="background: #0891b2; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">← Scroll Left</button>
-                <button onclick="scrollSwimlane('right')" style="background: #0891b2; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">Scroll Right →</button>
+                <button onclick="scrollSwimlane('left')" style="background: #045E9F; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">← Scroll Left</button>
+                <button onclick="scrollSwimlane('right')" style="background: #045E9F; color: white; border: none; padding: 10px 20px; margin: 0 5px; border-radius: 6px; cursor: pointer; font-weight: 700;">Scroll Right →</button>
             </div>
             
             <div class="swimlane-container" id="swimlane-scroll-container">
@@ -548,8 +552,8 @@
                         </div>
                         <div class="lane-cell"></div>
                         <div class="lane-cell">
-                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%); border: 3px solid #0891b2;">
-                                <div class="activity-title" style="color: #0891b2; font-weight: 800;">Vendor Contract Negotiation</div>
+                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%); border: 3px solid #045E9F;">
+                                <div class="activity-title" style="color: #045E9F; font-weight: 800;">Vendor Contract Negotiation</div>
                                 <div class="activity-detail">Handle vendor contracts for instrument and materials procurement</div>
                             </div>
                             <div class="activity activity-procurement">
@@ -653,8 +657,8 @@
                             </div>
                         </div>
                         <div class="lane-cell">
-                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #0891b2;">
-                                <div class="activity-title" style="color: #0891b2; font-weight: 800;">Weekly Implementation Calls</div>
+                            <div class="activity" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #045E9F;">
+                                <div class="activity-title" style="color: #045E9F; font-weight: 800;">Weekly Implementation Calls</div>
                                 <div class="activity-detail">~1 hour calls. Collaborate on: LIS/EHR/Instrument Integration, CLIA Upgrade & Lab Setup, Pre-Installation Assessments, Materials Prep, Installation Prep</div>
                             </div>
                             <div class="activity activity-integration">
@@ -1137,7 +1141,7 @@
                         <span><strong>CLIA Filings/Upgrades:</strong> CMS-116 forms, compliance requirements, Lab Director sign-off, certificate processing</span>
                     </div>
                     <div class="legend-item">
-                        <div class="legend-color" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #0891b2;"></div>
+                        <div class="legend-color" style="background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 33%, #fffbeb 66%, #fef2f2 100%); border: 3px solid #045E9F;"></div>
                         <span><strong>Multi-Category Activities:</strong> Activities involving all implementation categories simultaneously</span>
                     </div>
                 </div>
@@ -1369,8 +1373,8 @@
         <div class="workflow-view" id="view-gantt">
             <h2 class="view-title">Gantt Chart: 10-Phase Implementation Timeline</h2>
             
-            <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
-                <p style="margin: 0; color: #0891b2; font-weight: 600;">Typical Implementation Timeline: Contract to Go-Live (30-60 Days / 8 Weeks)</p>
+            <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: #e6f2fa; border-radius: 8px;">
+                <p style="margin: 0; color: #045E9F; font-weight: 600;">Typical Implementation Timeline: Contract to Go-Live (30-60 Days / 8 Weeks)</p>
             </div>
             
             <div class="gantt-container">
@@ -1491,8 +1495,8 @@
                     </div>
                 </div>
                 
-                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 2px solid #0891b2;">
-                    <div style="font-weight: 700; color: #0891b2; margin-bottom: 10px;">Timeline Notes:</div>
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 2px solid #045E9F;">
+                    <div style="font-weight: 700; color: #045E9F; margin-bottom: 10px;">Timeline Notes:</div>
                     <ul style="margin: 0; padding-left: 20px; color: #666;">
                         <li><strong>Welcome Call:</strong> Scheduled for Week 2 after initial contract setup</li>
                         <li><strong>Onboarding Call (*Week 5-6):</strong> Scheduled only once instrument delivery date is confirmed (typically Week 5-6)</li>

@@ -1403,6 +1403,14 @@ const ProjectList = ({ token, user, onSelectProject, onLogout, onManageTemplates
             Reports
           </button>
         )}
+        <a
+          href="/implementation-overview"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-700 hover:text-primary font-medium text-sm uppercase tracking-wide"
+        >
+          Launch Overview
+        </a>
         {user.role === 'admin' && (
           <div className="relative">
             <button
