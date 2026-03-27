@@ -69,17 +69,26 @@ if (!process.env.JWT_SECRET) {
 app.use(cors());
 app.use(bodyParser.json({ limit: config.BODY_PARSER_LIMIT }));
 
-// Static file options with no-cache headers for development
+// Static asset extensions that benefit from browser caching
+const CACHEABLE_EXTENSIONS = new Set(['.js', '.css', '.ico', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.woff', '.woff2']);
+
+// Static file options — allow browser caching for JS/CSS/images, no-cache for HTML
 const staticOptions = {
-  etag: false,
-  lastModified: false,
-  setHeaders: (res) => {
-    Object.entries(config.NO_CACHE_HEADERS).forEach(([k, v]) => res.set(k, v));
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (CACHEABLE_EXTENSIONS.has(ext)) {
+      // Cache static assets for 1 hour; app.js is versioned via ?v= query param in HTML for cache-busting
+      res.set('Cache-Control', 'public, max-age=3600');
+    } else {
+      Object.entries(config.NO_CACHE_HEADERS).forEach(([k, v]) => res.set(k, v));
+    }
   }
 };
 
-// Disable caching to prevent stale content issues
-app.use((req, res, next) => {
+// Apply no-cache headers to API routes only — static assets use their own cache headers above
+app.use('/api', (req, res, next) => {
   Object.entries(config.NO_CACHE_HEADERS).forEach(([k, v]) => res.set(k, v));
   next();
 });
@@ -4503,6 +4512,26 @@ app.post('/api/projects/:id/clone', authenticateToken, async (req, res) => {
     res.json(newProject);
   } catch (error) {
     console.error('Clone project error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Lightweight project resolver by slug — returns a single project without loading task data.
+// Used by the implementation app when navigating directly to a /launch/:slug-internal URL,
+// avoiding the expensive GET /api/projects which loads tasks for every project.
+app.get('/api/projects/resolve-slug/:slug', authenticateToken, async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const projects = await getProjects();
+    const project = projects.find(p => p.clientLinkSlug === slug || p.clientLinkId === slug);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    if (!canAccessProject(req.user, project.id)) {
+      return res.status(403).json({ error: 'Access denied to this project' });
+    }
+    res.json(project);
+  } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
